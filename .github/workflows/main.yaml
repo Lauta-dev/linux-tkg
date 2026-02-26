@@ -29,17 +29,20 @@ jobs:
       - name: Compilar
         run: |
           cd linux-tkg
-          # Usamos 'config' para que parchee y prepare, y luego 'make' manual
-          # Esto evita que el script interactivo nos frene
-          ./install.sh config
+          mkdir -p logs
+          # El comando 'yes ""' responde 'Enter' a todas las preguntas
+          # Las variables de entorno fuerzan las opciones principales
+          yes "" | _compiler="gcc" _cpusched="pds" _distro="Generic" _no_confirm="true" _install_interactively="false" ./install.sh config
           
-          # Entramos a donde se descargó el kernel y compilamos a mano
+          # Una vez configurado, entramos a compilar a mano para evitar más prompts
           cd linux-src-git
           make -j$(nproc) bzImage
           make -j$(nproc) modules
         env:
-          _no_confirm: "true"
+          _compiler: "gcc"
+          _cpusched: "pds"
           _distro: "Generic"
+          _no_confirm: "true"
 
       - name: Organizar Archivos
         run: |
