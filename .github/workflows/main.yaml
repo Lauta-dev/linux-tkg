@@ -6,17 +6,17 @@ on:
   workflow_dispatch:
 
 env:
-  # Variables maestras para el script de TKG
   _processor_opt: "silvermont"
   _cpusched: "pds"
   _compiler: "gcc"
   _distro: "Arch"
-  _kernel_on_diet: "false"
+  _kernel_on_diet: "false" 
   _modprobeddb: "true"
   _modprobeddb_db_path: "/home/user/modprobed.db"
   _debugdisable: "true"
   _no_confirm: "true"
   PKGDEST: "/home/user/reales_paquetes"
+  SRCDEST: "/home/user/sources"
 
 jobs:
   build-kernel:
@@ -26,54 +26,72 @@ jobs:
       options: --user root
 
     steps:
-      - name: 1. Preparar Sistema (Keys y Dependencias Totales)
+      - name: 1. Sincronizar y Actualizar Toolchain (Fix Assembler)
         run: |
-          # Refrescar llaves de Arch para evitar errores de paquetes corruptos
+          # 1. Configurar llaves
           pacman-key --init
           pacman-key --populate archlinux
           pacman -Sy --noconfirm archlinux-keyring
-          # Instalación de TODAS las makedepends de tu PKGBUILD
-          pacman -Syu --noconfirm git base-devel sudo bc ccache kmod cpio perl tar xz wget \
-          pahole python-sphinx python-sphinx_rtd_theme patchutils \
-          xmlto docbook-xsl inetutils flex graphviz imagemagick bison libelf
+          
+          # 2. ACTUALIZACIÓN TOTAL: Esto es vital para que binutils y gcc coincidan
+          # Instalamos absolutamente todo lo necesario para evitar el error de ensamblador
+          pacman -Syu --noconfirm
+          pacman -S --needed --noconfirm git base-devel sudo bc ccache kmod cpio perl tar xz wget \
+          pahole python-sphinx python-sphinx_rtd_theme patchutils xmlto docbook-xsl \
+          inetutils flex graphviz imagemagick bison libelf llvm clang rust
 
       - name: 2. Checkout de tu repositorio
         uses: actions/checkout@v4
 
-      - name: 3. Configurar Usuario y Entorno TKG
+      - name: 3. Configurar Usuario y Carpetas
         run: |
-          # Crear usuario y darle permisos de sudo
           useradd -m user
           echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-          
-          # Clonar TKG oficial
+          mkdir -p ${{ env.SRCDEST }}
+          mkdir -p ${{ env.PKGDEST }}
+          chown -R user:user /home/user
+
+      - name: 4. Cachear fuentes del Kernel
+        uses: actions/cache@v4
+        with:
+          path: /home/user/sources
+          key: kernel-sources-${{ hashFiles('**/PKGBUILD') }}
+          restore-keys: |
+            kernel-sources-
+
+      - name: 5. Preparar Repositorio TKG
+        run: |
+          # Clonar y limpiar para asegurar frescura
           git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git /home/user/linux-tkg
-          
-          # Copiar TUS configuraciones al corazón del build
           cp customization.cfg /home/user/linux-tkg/
           cp modprobed.db /home/user/modprobed.db
-          
-          # Crear carpetas de salida y dar permisos a 'user' sobre TODO
-          mkdir -p ${{ env.PKGDEST }}
           chown -R user:user /home/user/linux-tkg
-          chown -R user:user ${{ env.PKGDEST }}
           chown user:user /home/user/modprobed.db
 
-      - name: 4. Inyectar Dieta de Drivers (Video)
+      - name: 6. Inyectar Parches de Limpieza
         run: |
-          # Modificamos el PKGBUILD para desactivar drivers innecesarios
-          # Buscamos _tkg_srcprep y añadimos la limpieza de drivers de video
+          # Desactivar drivers de video innecesarios (Ahorra tiempo y evita errores de módulos)
           sed -i '/_tkg_srcprep/a \  scripts/config --file "${_kernel_work_folder_abs}/.config" --disable CONFIG_DRM_AMDGPU --disable CONFIG_DRM_NOUVEAU --disable CONFIG_DRM_RADEON' /home/user/linux-tkg/PKGBUILD
 
-      - name: 5. Compilar (Makepkg)
+      - name: 7. Compilación Maestra (Makepkg)
         working-directory: /home/user/linux-tkg
         run: |
-          # Ejecutamos con su -m para heredar las variables de entorno (env:)
-          # yes '' acepta automáticamente las opciones de parches por defecto
-          su -m user -c "yes '' | makepkg --noconfirm -s"
+          # Forzamos las variables y usamos 'yes' para automatizar
+          su -m user -c "export SRCDEST=${{ env.SRCDEST }}; \
+                      export _processor_opt=silvermont; \
+                      export _cpusched=pds; \
+                      export _distro=Arch; \
+                      export _kernel_on_diet=false; \
+                      export _modprobeddb=true; \
+                      export _modprobeddb_db_path=/home/user/modprobed.db; \
+                      export _debugdisable=true; \
+                      export _no_confirm=true; \
+                      export PKGDEST=${{ env.PKGDEST }}; \
+                      yes '' | makepkg --noconfirm -s"
 
-      - name: 6. Subir Paquetes (.pkg.tar.zst)
+      - name: 8. Subir Paquetes Finales (.pkg.tar.zst)
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-tkg-silvermont-final
+          name: kernel-N2807-silvermont-v17
           path: /home/user/reales_paquetes/*.pkg.tar.zst
