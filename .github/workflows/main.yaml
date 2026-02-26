@@ -26,12 +26,47 @@ jobs:
           
           # Forzamos las variables para tu Silvermont y PDS
           cd linux-tkg
-          sed -i 's/^_processor_opt=.*/_processor_opt="silvermont"/' customization.cfg
-          sed -i 's/^_cpusched=.*/_cpusched="pds"/' customization.cfg
-          sed -i 's/^_modprobeddb=.*/_modprobeddb="true"/' customization.cfg
-          sed -i "s|#_modprobeddb_db_path=.*|_modprobeddb_db_path=\"$GITHUB_WORKSPACE/modprobed.db\"|" customization.cfg
-          # IMPORTANTE: Desactivamos el empaquetado nativo para que no intente hacer .deb
-          sed -i 's/^_distro=.*/_distro="Generic"/' customization.cfg
+          # --- 1. VIDEO: MATAR RAÍCES DE AMD Y NVIDIA ---
+          scripts/config --disable CONFIG_DRM_AMDGPU
+          scripts/config --disable CONFIG_DRM_RADEON
+          scripts/config --disable CONFIG_DRM_NOUVEAU
+          # Asegurar Intel para tu HDMI
+          scripts/config --enable CONFIG_DRM_I915
+          
+          # --- 2. MULTIMEDIA: WEBCAM SI, TODO LO DEMÁS NO ---
+          scripts/config --enable CONFIG_MEDIA_SUPPORT
+          scripts/config --enable CONFIG_MEDIA_CAMERA_SUPPORT
+          scripts/config --enable CONFIG_VIDEO_V4L2
+          scripts/config --disable CONFIG_MEDIA_ANALOG_TV_SUPPORT
+          scripts/config --disable CONFIG_MEDIA_DIGITAL_TV_SUPPORT
+          scripts/config --disable CONFIG_MEDIA_RADIO_SUPPORT
+          scripts/config --disable CONFIG_MEDIA_SDR_SUPPORT
+          scripts/config --disable CONFIG_VIDEO_ADV_DEBUG
+          
+          # --- 3. RED: SOLO INTEL Y REALTEK ---
+          scripts/config --disable CONFIG_WLAN_VENDOR_MEDIATEK
+          scripts/config --disable CONFIG_WLAN_VENDOR_RALINK
+          scripts/config --disable CONFIG_WLAN_VENDOR_BROADCOM
+          scripts/config --disable CONFIG_WLAN_VENDOR_ATH
+          scripts/config --disable CONFIG_NET_VENDOR_AMD
+          scripts/config --disable CONFIG_NET_VENDOR_NVIDIA
+          scripts/config --enable CONFIG_NET_VENDOR_INTEL
+          scripts/config --enable CONFIG_NET_VENDOR_REALTEK
+          
+          # --- 4. AUDIO: HDMI INTEL OK, EL RESTO NO ---
+          scripts/config --enable CONFIG_SND_HDA_CODEC_HDMI
+          scripts/config --disable CONFIG_SND_HDA_CODEC_ATIHDMI
+          scripts/config --disable CONFIG_SND_HDA_CODEC_NVHDMICK
+          
+          # --- 5. LIMPIEZA DE GRASA GENERAL ---
+          scripts/config --disable CONFIG_HYPERV
+          scripts/config --disable CONFIG_XEN
+          scripts/config --disable CONFIG_VIRTUALIZATION
+          scripts/config --set-val CONFIG_NR_CPUS 2
+          scripts/config --enable CONFIG_MSILVERMONT
+          
+          # Forzar a que el config sea consistente (borra lo que quedó huérfano)
+          make olddefconfig
 
       - name: 4. Compilar Kernel
         run: |
