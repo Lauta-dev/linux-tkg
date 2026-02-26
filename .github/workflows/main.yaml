@@ -6,55 +6,74 @@ on:
   workflow_dispatch:
 
 env:
+  # Variables maestras para el script de TKG
   _processor_opt: "silvermont"
   _cpusched: "pds"
   _compiler: "gcc"
   _distro: "Arch"
   _kernel_on_diet: "true"
   _modprobeddb: "true"
-  _modprobeddb_db_path: "${{ github.workspace }}/modprobed.db"
+  _modprobeddb_db_path: "/home/user/modprobed.db"
   _debugdisable: "true"
   _no_confirm: "true"
-  PKGDEST: "${{ github.workspace }}/reales_paquetes"
+  PKGDEST: "/home/user/reales_paquetes"
 
 jobs:
   build-kernel:
     runs-on: ubuntu-latest
-    container: archlinux:latest
+    container: 
+      image: archlinux:latest
+      options: --user root
 
     steps:
-      - name: Instalar Dependencias Críticas
+      - name: 1. Preparar Sistema (Keys y Dependencias Totales)
         run: |
-          pacman -Syu --noconfirm git base-devel sudo bc ccache kmod cpio perl tar xz wget
+          # Refrescar llaves de Arch para evitar errores de paquetes corruptos
+          pacman-key --init
+          pacman-key --populate archlinux
+          pacman -Sy --noconfirm archlinux-keyring
+          # Instalación de TODAS las makedepends de tu PKGBUILD
+          pacman -Syu --noconfirm git base-devel sudo bc ccache kmod cpio perl tar xz wget \
+          pahole python-sphinx python-sphinx_rtd_theme patchutils \
+          xmlto docbook-xsl inetutils flex graphviz imagemagick bison libelf
 
-      - name: Checkout de tu Repo
+      - name: 2. Checkout de tu repositorio
         uses: actions/checkout@v4
 
-      - name: Clonar Linux-TKG y Mezclar Archivos
+      - name: 3. Configurar Usuario y Entorno TKG
         run: |
-          # 1. Clonamos el repo oficial en una carpeta temporal
-          git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git temp-tkg
+          # Crear usuario y darle permisos de sudo
+          useradd -m user
+          echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
           
-          # 2. Movemos tus archivos personalizados al repo de TKG
-          cp customization.cfg temp-tkg/
-          cp modprobed.db temp-tkg/
+          # Clonar TKG oficial
+          git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git /home/user/linux-tkg
           
-          # 3. Movemos todo el contenido al directorio de trabajo actual
-          cp -r temp-tkg/* .
-          rm -rf temp-tkg
+          # Copiar TUS configuraciones al corazón del build
+          cp customization.cfg /home/user/linux-tkg/
+          cp modprobed.db /home/user/modprobed.db
+          
+          # Crear carpetas de salida y dar permisos a 'user' sobre TODO
+          mkdir -p ${{ env.PKGDEST }}
+          chown -R user:user /home/user/linux-tkg
+          chown -R user:user ${{ env.PKGDEST }}
+          chown user:user /home/user/modprobed.db
 
-      - name: Inyectar Limpieza de Drivers (AMD/NVIDIA)
+      - name: 4. Inyectar Dieta de Drivers (Video)
         run: |
-          # Ahora sí, el PKGBUILD va a estar acá y el sed funcionará
-          sed -i '/_tkg_srcprep/a \  scripts/config --file "${_kernel_work_folder_abs}/.config" --disable CONFIG_DRM_AMDGPU --disable CONFIG_DRM_NOUVEAU --disable CONFIG_DRM_RADEON' PKGBUILD
+          # Modificamos el PKGBUILD para desactivar drivers innecesarios
+          # Buscamos _tkg_srcprep y añadimos la limpieza de drivers de video
+          sed -i '/_tkg_srcprep/a \  scripts/config --file "${_kernel_work_folder_abs}/.config" --disable CONFIG_DRM_AMDGPU --disable CONFIG_DRM_NOUVEAU --disable CONFIG_DRM_RADEON' /home/user/linux-tkg/PKGBUILD
 
-      - name: Compilar (Makepkg)
+      - name: 5. Compilar (Makepkg)
+        working-directory: /home/user/linux-tkg
         run: |
-          chown -R user:user .
-          su user -c "yes '' | makepkg --noconfirm -s"
+          # Ejecutamos con su -m para heredar las variables de entorno (env:)
+          # yes '' acepta automáticamente las opciones de parches por defecto
+          su -m user -c "yes '' | makepkg --noconfirm -s"
 
-      - name: Subir Paquetes
+      - name: 6. Subir Paquetes (.pkg.tar.zst)
         uses: actions/upload-artifact@v4
         with:
           name: kernel-tkg-silvermont-final
-          path: ./*.pkg.tar.zst
+          path: /home/user/reales_paquetes/*.pkg.tar.zst
