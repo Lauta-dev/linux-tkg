@@ -27,26 +27,30 @@ jobs:
         run: |
           pacman -Syu --noconfirm git base-devel sudo bc ccache kmod cpio perl tar xz wget
 
-      - name: Checkout
+      - name: Checkout de tu Repo
         uses: actions/checkout@v4
 
-      - name: Preparar Usuario y Carpetas
+      - name: Clonar Linux-TKG y Mezclar Archivos
         run: |
-          useradd user -m
-          echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-          chown -R user:user .
-          mkdir -p ${{ env.PKGDEST }}
-          chown -R user:user ${{ env.PKGDEST }}
+          # 1. Clonamos el repo oficial en una carpeta temporal
+          git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git temp-tkg
+          
+          # 2. Movemos tus archivos personalizados al repo de TKG
+          cp customization.cfg temp-tkg/
+          cp modprobed.db temp-tkg/
+          
+          # 3. Movemos todo el contenido al directorio de trabajo actual
+          cp -r temp-tkg/* .
+          rm -rf temp-tkg
 
       - name: Inyectar Limpieza de Drivers (AMD/NVIDIA)
         run: |
-          # Buscamos la función prepare() y metemos los disable ahí adentro
-          # Usamos un método más seguro para el PKGBUILD de TKG
+          # Ahora sí, el PKGBUILD va a estar acá y el sed funcionará
           sed -i '/_tkg_srcprep/a \  scripts/config --file "${_kernel_work_folder_abs}/.config" --disable CONFIG_DRM_AMDGPU --disable CONFIG_DRM_NOUVEAU --disable CONFIG_DRM_RADEON' PKGBUILD
 
       - name: Compilar (Makepkg)
         run: |
-          # El yes '' es para que acepte todas las configs por defecto
+          chown -R user:user .
           su user -c "yes '' | makepkg --noconfirm -s"
 
       - name: Subir Paquetes
