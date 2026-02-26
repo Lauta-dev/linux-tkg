@@ -51,15 +51,25 @@ jobs:
           # y linux-src-git si ya existen gracias al cache.
           yes "" | ./install.sh install
 
-      - name: 6. Empaquetado de Binarios
+      - name: 5. Empaquetado de Binarios
         run: |
+          # Creamos la carpeta de salida
           mkdir -p output/boot
+          
+          # 1. Copiar el Kernel (el binario ejecutable)
           cp linux-tkg/linux-src-git/arch/x86/boot/bzImage output/boot/vmlinuz-linux66-tkg-silvermont
+          
+          # 2. Instalar los Módulos en la carpeta output
           cd linux-tkg/linux-src-git
           sudo make INSTALL_MOD_PATH=../../output modules_install
+          
+          # 3. Limpiar y Comprimir (usando sudo para evitar errores de permisos)
           cd ../../output
-          rm -f lib/modules/*/build lib/modules/*/source
-          tar -cvzf ../kernel-66-silvermont.tar.gz .
+          sudo rm -f lib/modules/*/build lib/modules/*/source
+          sudo tar -cvzf ../kernel-66-silvermont.tar.gz .
+          
+          # 4. Cambiar el dueño del archivo final para que el Action pueda subirlo
+          sudo chown $USER:$USER ../kernel-66-silvermont.tar.gz
 
       - name: 7. Subir Artifact
         uses: actions/upload-artifact@v4
