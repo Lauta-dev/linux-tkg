@@ -33,6 +33,7 @@ jobs:
           git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
           # Copiamos tu config a la raíz de linux-tkg
           cp customization.cfg linux-tkg/
+          echo customization.cfg
 
       - name: Compilar
         run: |
