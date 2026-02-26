@@ -9,44 +9,50 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: 1. Checkout
+      - name: 1. Checkout del Repositorio
         uses: actions/checkout@v4
 
-      - name: 2. Preparar Base de Datos de Módulos
+      - name: 2. Preparar Base de Datos (Fake LSMOD)
         run: |
-          mkdir -p ~/.config
-          # Inyectamos tu lista (asumiendo que el archivo se llama mis_modulos.txt en tu repo)
-          cat modprobed.db > ~/.config/modprobed.db
+          # Convertimos tu lista simple al formato 'Nombre 0 0'
+          # Esto evita el error en streamline_config.pl line 360
+          awk '{print $1 " 0 0"}' modprobed.db > /home/runner/modprobed.db
+          echo "Base de datos preparada en /home/runner/modprobed.db"
+          head -n 5 /home/runner/modprobed.db
 
       - name: 3. Instalar Dependencias
         run: |
           sudo apt-get update
           sudo apt-get install -y git build-essential bc bison flex libelf-dev libssl-dev make ccache dwarves libncurses-dev xz-utils kmod
 
-      - name: 4. Ejecutar Linux-TKG
+      - name: 4. Configurar y Parchear Linux-TKG
         run: |
           git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
+          # Copiamos tu archivo de configuración al lugar correcto
           cp customization.cfg linux-tkg/customization.cfg
+          
           cd linux-tkg
-          # Usamos 'install' para que aplique parches, modprobed-db y compile.
-          # Como _install_after_building="no", no intentará instalarlo en la VM de GitHub.
+          # Ejecutamos la instalación automática
+          # _install_after_building="no" en tu .cfg evitará errores al final
           yes "" | ./install.sh install
 
       - name: 5. Empaquetado de Binarios
         run: |
           mkdir -p output/boot
-          # Buscamos el bzImage generado en la carpeta de fuentes de TKG
-          cp linux-tkg/linux-src-git/arch/x86/boot/bzImage output/boot/vmlinuz-linux66-tkg
+          # El kernel compilado (bzImage)
+          cp linux-tkg/linux-src-git/arch/x86/boot/bzImage output/boot/vmlinuz-linux66-tkg-silvermont
+          
+          # Instalación de módulos en carpeta temporal
           cd linux-tkg/linux-src-git
-          # Instalamos módulos en nuestra carpeta de salida
           sudo make INSTALL_MOD_PATH=../../output modules_install
+          
+          # Limpieza de enlaces rotos y compresión
           cd ../../output
-          # Limpiamos enlaces simbólicos rotos antes de comprimir
           rm -f lib/modules/*/build lib/modules/*/source
           tar -cvzf ../kernel-66-silvermont.tar.gz .
 
-      - name: 6. Subir Kernel
+      - name: 6. Subir Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-66-optimizado
+          name: kernel-tkg-6.6-silvermont
           path: kernel-66-silvermont.tar.gz
