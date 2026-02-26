@@ -1,101 +1,136 @@
-name: Linux-TKG Silvermont (Ubuntu Runner -> Raw Tarball)
+name: linux-tkg-build
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  _processor_opt: "silvermont"
+  _cpusched: "pds"
+  _distro: "Generic"
+  _compiler_optimization_level: "2"
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+
 jobs:
   build:
-    runs-on: ubuntu-22.04 # El entorno más estable para compilar
+    runs-on: ubuntu-22.04
     steps:
-      - name: 1. Checkout del repositorio
+      - name: 1. Checkout del Repositorio
         uses: actions/checkout@v4
 
-      - name: 2. Instalar Dependencias de Compilación (Ubuntu)
+      - name: 2. Dependencias de Compilación
         run: |
           sudo apt-get update
-          sudo apt-get install -y git build-essential bc bison flex libelf-dev libssl-dev \
-          make ccache dwarves libncurses-dev xz-utils kmod
+          sudo apt-get install -y git build-essential bc bison flex libelf-dev libssl-dev make ccache dwarves libncurses-dev xz-utils kmod python3
 
-      - name: 3. Clonar TKG y Preparar Config
+      - name: 3. Cache del Código Fuente (Kernel.org Fetch)
+        uses: actions/cache@v4
+        with:
+          path: linux-tkg/linux-src-git
+          key: kernel-src-6.6
+
+      - name: 4. Cache de Compilación (ccache)
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-silvermont-${{ github.sha }}
+          restore-keys: ccache-silvermont-
+
+      - name: 5. Preparar Entorno TKG
         run: |
-          git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
-          cp customization.cfg linux-tkg/
-          cp modprobed.db linux-tkg/
-          
-          # Forzamos las variables para tu Silvermont y PDS
+          if [ ! -d "linux-tkg" ]; then
+            git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
+          fi
           cd linux-tkg
-          # --- 1. VIDEO: MATAR RAÍCES DE AMD Y NVIDIA ---
+          sed -i 's/^_kernel_release=.*/_kernel_release="6.6"/' customization.cfg
+          if [ ! -d "linux-src-git" ]; then
+            ./install.sh script_only
+          fi
+
+      - name: 6. Poda Atómica y Configuración Profesional
+        working-directory: linux-tkg/linux-src-git
+        run: |
+          # Generar base limpia
+          make x86_64_defconfig
+          
+          # --- SECCIÓN: MUERTE A SERVIDORES Y SUPERCOMPUS ---
+          scripts/config --disable CONFIG_NUMA
+          scripts/config --disable CONFIG_MAXSMP
+          scripts/config --disable CONFIG_SCHED_SMT
+          scripts/config --disable CONFIG_VIRTUALIZATION
+          scripts/config --disable CONFIG_HYPERV
+          scripts/config --disable CONFIG_XEN
+          scripts/config --disable CONFIG_HUGETLBFS
+          scripts/config --disable CONFIG_TRANSPARENT_HUGEPAGE
+          
+          # --- SECCIÓN: LIMPIEZA DE SEGURIDAD PESADA (Hardening) ---
+          scripts/config --disable CONFIG_SLAB_FREELIST_RANDOM
+          scripts/config --disable CONFIG_SLAB_FREELIST_HARDENED
+          scripts/config --disable CONFIG_HARDENED_USERCOPY
+          scripts/config --disable CONFIG_FORTIFY_SOURCE
+          
+          # --- SECCIÓN: MUERTE AL DEBUG (Ahorro masivo de espacio) ---
+          scripts/config --disable CONFIG_DEBUG_KERNEL
+          scripts/config --disable CONFIG_DEBUG_INFO
+          scripts/config --disable CONFIG_KGDB
+          scripts/config --disable CONFIG_FTRACE
+          
+          # --- SECCIÓN: VIDEO Y RED (Solo lo que tenés) ---
           scripts/config --disable CONFIG_DRM_AMDGPU
           scripts/config --disable CONFIG_DRM_RADEON
           scripts/config --disable CONFIG_DRM_NOUVEAU
-          # Asegurar Intel para tu HDMI
-          scripts/config --enable CONFIG_DRM_I915
-          
-          # --- 2. MULTIMEDIA: WEBCAM SI, TODO LO DEMÁS NO ---
-          scripts/config --enable CONFIG_MEDIA_SUPPORT
-          scripts/config --enable CONFIG_MEDIA_CAMERA_SUPPORT
-          scripts/config --enable CONFIG_VIDEO_V4L2
-          scripts/config --disable CONFIG_MEDIA_ANALOG_TV_SUPPORT
-          scripts/config --disable CONFIG_MEDIA_DIGITAL_TV_SUPPORT
-          scripts/config --disable CONFIG_MEDIA_RADIO_SUPPORT
-          scripts/config --disable CONFIG_MEDIA_SDR_SUPPORT
-          scripts/config --disable CONFIG_VIDEO_ADV_DEBUG
-          
-          # --- 3. RED: SOLO INTEL Y REALTEK ---
           scripts/config --disable CONFIG_WLAN_VENDOR_MEDIATEK
           scripts/config --disable CONFIG_WLAN_VENDOR_RALINK
           scripts/config --disable CONFIG_WLAN_VENDOR_BROADCOM
-          scripts/config --disable CONFIG_WLAN_VENDOR_ATH
-          scripts/config --disable CONFIG_NET_VENDOR_AMD
-          scripts/config --disable CONFIG_NET_VENDOR_NVIDIA
           scripts/config --enable CONFIG_NET_VENDOR_INTEL
           scripts/config --enable CONFIG_NET_VENDOR_REALTEK
           
-          # --- 4. AUDIO: HDMI INTEL OK, EL RESTO NO ---
-          scripts/config --enable CONFIG_SND_HDA_CODEC_HDMI
-          scripts/config --disable CONFIG_SND_HDA_CODEC_ATIHDMI
-          scripts/config --disable CONFIG_SND_HDA_CODEC_NVHDMICK
+          # --- SECCIÓN: FILESYSTEMS (El kit del usuario) ---
+          scripts/config --enable CONFIG_EXT4_FS
+          scripts/config --enable CONFIG_VFAT_FS
+          scripts/config --enable CONFIG_FAT_FS
+          scripts/config --enable CONFIG_NTFS3_FS
+          scripts/config --enable CONFIG_ISO9660_FS
+          scripts/config --disable CONFIG_XFS_FS --disable CONFIG_BTRFS_FS --disable CONFIG_JFS --disable CONFIG_REISERFS
           
-          # --- 5. LIMPIEZA DE GRASA GENERAL ---
-          scripts/config --disable CONFIG_HYPERV
-          scripts/config --disable CONFIG_XEN
-          scripts/config --disable CONFIG_VIRTUALIZATION
-          scripts/config --set-val CONFIG_NR_CPUS 2
+          # --- SECCIÓN: MULTIMEDIA Y LEGACY ---
+          scripts/config --enable CONFIG_MEDIA_SUPPORT
+          scripts/config --enable CONFIG_MEDIA_CAMERA_SUPPORT
+          scripts/config --enable CONFIG_VIDEO_V4L2
+          scripts/config --disable CONFIG_MEDIA_DIGITAL_TV_SUPPORT
+          scripts/config --disable CONFIG_HAMRADIO --disable CONFIG_JOYSTICK --disable CONFIG_CAN --disable CONFIG_PARPORT
+          
+          # --- SECCIÓN: OPTIMIZACIÓN SILVERMONT ---
           scripts/config --enable CONFIG_MSILVERMONT
+          scripts/config --enable CONFIG_GENERIC_CPU_V2
+          scripts/config --set-val CONFIG_NR_CPUS 2
+          scripts/config --enable CONFIG_SND_HDA_CODEC_HDMI
           
-          # Forzar a que el config sea consistente (borra lo que quedó huérfano)
+          # Aplicar cambios
           make olddefconfig
 
-      - name: 4. Compilar Kernel
+      - name: 7. Compilación con CCACHE
+        working-directory: linux-tkg/linux-src-git
         run: |
-          cd linux-tkg
-          # Usamos WERROR=0 para que no aborte por advertencias tontas de GCC
-          export KCFLAGS="-Wno-error"
-          # ./install.sh en modo Generic compila y deja los archivos en una carpeta temporal
-          yes "" | ./install.sh install
+          ccache -z
+          make -j$(nproc) CC="ccache gcc" KCFLAGS="-Wno-error" WERROR=0 bzImage modules
+          ccache -s
 
-      - name: 5. Empaquetar Kernel + Módulos en .tar.gz
+      - name: 8. Empaquetado Profesional
         run: |
-          # Creamos una carpeta de estructura limpia
           mkdir -p output/boot
-          
-          # 1. Copiamos el kernel comprimido y el mapa de símbolos
-          cp linux-tkg/linux-src-git/arch/x86/boot/bzImage output/boot/vmlinuz-tkg-silvermont
-          cp linux-tkg/linux-src-git/System.map output/boot/
-          cp linux-tkg/linux-src-git/.config output/boot/config-tkg-silvermont
-          
-          # 2. Instalamos los módulos en nuestra carpeta temporal
+          # Nombre fijo para no romper tus entradas de systemd-boot
+          cp linux-tkg/linux-src-git/arch/x86/boot/bzImage output/boot/vmlinuz-linux-tkg
           cd linux-tkg/linux-src-git
           sudo make INSTALL_MOD_PATH=../../output modules_install
-          
-          # 3. Creamos el archivo .tar.gz final con todo
           cd ../../output
-          tar -cvzf ../kernel-silvermont-final.tar.gz .
+          # Limpiar enlaces simbólicos rotos antes de comprimir
+          rm -f lib/modules/*/build lib/modules/*/source
+          tar -cvzf ../kernel-tkg.tar.gz .
 
-      - name: 6. Subir Artifact (.tar.gz)
+      - name: 9. Subir Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: linux-tkg-silvermont-raw-tarball
-          path: kernel-silvermont-final.tar.gz
+          name: kernel-tkg-silvermont
+          path: kernel-tkg.tar.gz
