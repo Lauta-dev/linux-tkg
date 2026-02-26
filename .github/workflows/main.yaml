@@ -1,4 +1,4 @@
-name: Linux-TKG Silvermont Build
+name: Linux-TKG Silvermont Arch-Native Build
 
 on:
   push:
@@ -8,57 +8,50 @@ on:
 jobs:
   tkg-build:
     runs-on: ubuntu-latest
+    # AQUÍ ESTÁ EL SECRETO: Usamos una imagen oficial de Arch
+    container:
+      image: archlinux:latest
+
     permissions:
       contents: write
+
     steps:
+      - name: Actualizar Arch e Instalar dependencias
+        run: |
+          pacman -Syu --noconfirm
+          # Instalamos la base de desarrollo de Arch
+          pacman -S --noconfirm git base-devel ncurses flake8 libelf openssl \
+            bison flex ccache xmlto kmod inetutils bc python
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Instalar Dependencias
+      - name: Clonar y Preparar
         run: |
-          sudo apt-get update
-          sudo apt-get install -y git build-essential libncurses-dev flex bison openssl \
-            libssl-dev dkms libelf-dev libudev-dev libpci-dev libiberty-dev autoconf \
-            xz-utils zstd bc ccache python3 kmod fakeroot
-
-      - name: Cache Kernel Sources
-        uses: actions/cache@v4
-        with:
-          path: linux-tkg/linux-src-git
-          key: linux-tkg-src-6.6
-          restore-keys: linux-tkg-src-
-
-      - name: Clonar y Configurar
-        run: |
+          # Importante: TKG no deja correr makepkg como root (por seguridad)
+          # Pero en GitHub Actions somos root, así que usamos un pequeño truco
           git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
-          # Copiamos tu config a la raíz de linux-tkg
           cp customization.cfg linux-tkg/
 
-      - name: hacer cat en customization.cfg
-        run: cat customization.cfg
-      - name: Compilar
+      - name: Compilar (Modo Arch Puro)
         run: |
           cd linux-tkg
-          # Ejecutamos el instalador. Ya no debería fallar por el comando 'script'
-          ./install.sh install
+          # Permitimos que makepkg corra como root (solo para este build de GitHub)
+          export MAKEPKG_CONF="/etc/makepkg.conf"
+          # Usamos makepkg directamente como indica el README para Arch
+          # --noconfirm para que no pregunte nada
+          # --syncdeps para que instale lo que falte
+          # Se usa el comando de Arch oficial
+          chmod -R 777 .
+          sudo -u wheel makepkg --noconfirm -si || makepkg --noconfirm --allow-root
         env:
+          _distro: "Arch"
           _no_confirm: "true"
-
-      - name: Organizar Archivos
-        if: always()
-        run: |
-          mkdir -p release_files
-          find . -name "*.pkg.tar.zst" -exec cp {} release_files/ \;
-          find . -name "vmlinuz*" -exec cp {} release_files/ \;
 
       - name: Release
         uses: softprops/action-gh-release@v2
-        if: success()
         with:
-          tag_name: tkg-6.6-${{ github.run_number }}
-          name: Kernel Linux-TKG Silvermont (6.6 LTS)
-          body: |
-            Instalación en Arch: `sudo pacman -U *.pkg.tar.zst`
-          files: release_files/*
+          tag_name: tkg-arch-${{ github.run_number }}
+          files: linux-tkg/*.pkg.tar.zst
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
