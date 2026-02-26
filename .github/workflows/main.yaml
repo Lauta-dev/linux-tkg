@@ -11,7 +11,7 @@ env:
   _cpusched: "pds"
   _compiler: "gcc"
   _distro: "Arch"
-  _kernel_on_diet: "true"
+  _kernel_on_diet: "false"
   _modprobeddb: "true"
   _modprobeddb_db_path: "/home/user/modprobed.db"
   _debugdisable: "true"
