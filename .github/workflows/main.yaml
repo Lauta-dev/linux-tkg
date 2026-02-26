@@ -49,10 +49,39 @@ jobs:
           # Si no hizo el paquete, buscamos el binario
           find linux-tkg/linux-src-git -name "vmlinuz*" -exec cp {} release_files/ \;
 
-      - name: Upload Release
+      - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: tkg-v2-${{ github.run_number }}
+          tag_name: tkg-6.6-silvermont-${{ github.run_number }}
+          name: Kernel Linux-TKG 6.6 LTS (Silvermont Optimized)
+          body: |
+            ## 🚀 Kernel Personalizado para Intel Silvermont (N2800/N2807)
+            
+            Este kernel ha sido compilado específicamente para maximizar la fluidez en hardware limitado.
+            
+            ### 🛠 Detalles Técnicos:
+            - **Versión:** 6.6 LTS (Long Term Support)
+            - **Arquitectura:** Optimizado para `Silvermont` (Celeron/Atom)
+            - **Scheduler:** `PDS` (Prioriza la respuesta del escritorio e i3)
+            - **Compresión:** `LZ4` (El arranque más rápido posible)
+            - **Estado:** "Hyper-Light" (Sin drivers innecesarios, sin debug symbols)
+            
+            ### 🐧 Compatibilidad:
+            - **Distro:** Diseñado para **Arch Linux** y derivados (EndeavourOS, Manjaro).
+            - **Formato:** Paquete `.pkg.tar.zst` (Instalación nativa con Pacman).
+            
+            ### 📦 Instrucciones de Instalación:
+            1. Descargá el archivo `.pkg.tar.zst` de este Release.
+            2. Abrí una terminal en la carpeta de descarga.
+            3. Instalá usando pacman:
+               ```bash
+               sudo pacman -U linux-tkg-silvermont-6.6.x.pkg.tar.zst
+               ```
+            4. Actualizá tu cargador de arranque (GRUB o systemd-boot).
+            5. Reiniciá y seleccioná el nuevo kernel en el menú.
+            
+            ---
+            *Compilado automáticamente vía GitHub Actions.*
           files: release_files/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
