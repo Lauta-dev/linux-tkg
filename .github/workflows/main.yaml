@@ -33,21 +33,26 @@ jobs:
           git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
           cp customization.cfg linux-tkg/
 
-      - name: Compilar
+      - name: Compilar Kernel
         run: |
           cd linux-tkg
-          # Usamos 'config' primero para preparar y luego 'install' para empaquetar
-          ./install.sh script
+          # Creamos la carpeta de logs que pidió el script para que no tire error de copia
+          mkdir -p logs
+          # Usamos 'install' porque el script dice que hace 'config + compile'
+          # No usamos 'script', usamos las variables de entorno para que no pregunte nada
+          ./install.sh install
         env:
+          _install_interactively: "false"
           _no_confirm: "true"
+          _distro: "arch"
 
-      - name: Capturar Paquete
+      - name: Organizar Archivos
+        if: always() # Para que intente rescatar algo aunque falle
         run: |
           mkdir -p release_files
-          # TKG en modo Arch genera un .pkg.tar.zst
-          find linux-tkg -name "*.pkg.tar.zst" -exec cp {} release_files/ \;
-          # Si no hizo el paquete, buscamos el binario
-          find linux-tkg/linux-src-git -name "vmlinuz*" -exec cp {} release_files/ \;
+          # TKG en Arch con makepkg genera los archivos en la raíz o en carpetas de salida
+          find . -name "*.pkg.tar.zst" -exec cp {} release_files/ \;
+          find . -name "vmlinuz*" -exec cp {} release_files/ \;
 
       - name: Release
         uses: softprops/action-gh-release@v2
