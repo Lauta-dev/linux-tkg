@@ -9,49 +9,59 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: 1. Checkout del Repositorio
+      - name: 1. Checkout
         uses: actions/checkout@v4
 
-      - name: 2. Preparar Base de Datos (Fake LSMOD)
-        run: |
-          # Convertimos tu lista simple al formato 'Nombre 0 0'
-          # Esto evita el error en streamline_config.pl line 360
-          awk '{print $1 " 0 0"}' modprobed.db > /home/runner/modprobed.db
-          echo "Base de datos preparada en /home/runner/modprobed.db"
-          head -n 5 /home/runner/modprobed.db
+      - name: 2. Cache de Kernel y Ccache
+        uses: actions/cache@v4
+        with:
+          path: |
+            # Cacheamos el clon de git para evitar el fetch completo
+            linux-tkg/linux-kernel.git
+            # Cacheamos la carpeta de trabajo
+            linux-tkg/linux-src-git
+            # Cacheamos los binarios de ccache
+            .ccache
+          # La clave incluye la versión para no mezclar kernels diferentes
+          key: linux-6.6-silvermont-${{ runner.os }}-${{ github.sha }}
+          # restore-keys permite recuperar el cache de la ejecución anterior
+          restore-keys: |
+            linux-6.6-silvermont-${{ runner.os }}-
 
-      - name: 3. Instalar Dependencias
+      - name: 3. Preparar Base de Datos (Fake LSMOD)
+        run: |
+          awk '{print $1 " 0 0"}' modprobed.db > /home/runner/modprobed.db
+
+      - name: 4. Instalar Dependencias
         run: |
           sudo apt-get update
           sudo apt-get install -y git build-essential bc bison flex libelf-dev libssl-dev make ccache dwarves libncurses-dev xz-utils kmod
 
-      - name: 4. Configurar y Parchear Linux-TKG
+      - name: 5. Ejecutar Linux-TKG
         run: |
-          git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
-          # Copiamos tu archivo de configuración al lugar correcto
+          # Clonamos solo si no existe (por el cache)
+          if [ ! -d "linux-tkg" ]; then
+            git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
+          fi
+          
           cp customization.cfg linux-tkg/customization.cfg
           
           cd linux-tkg
-          # Ejecutamos la instalación automática
-          # _install_after_building="no" en tu .cfg evitará errores al final
+          # IMPORTANTE: El script detectará automáticamente las carpetas linux-kernel.git
+          # y linux-src-git si ya existen gracias al cache.
           yes "" | ./install.sh install
 
-      - name: 5. Empaquetado de Binarios
+      - name: 6. Empaquetado de Binarios
         run: |
           mkdir -p output/boot
-          # El kernel compilado (bzImage)
           cp linux-tkg/linux-src-git/arch/x86/boot/bzImage output/boot/vmlinuz-linux66-tkg-silvermont
-          
-          # Instalación de módulos en carpeta temporal
           cd linux-tkg/linux-src-git
           sudo make INSTALL_MOD_PATH=../../output modules_install
-          
-          # Limpieza de enlaces rotos y compresión
           cd ../../output
           rm -f lib/modules/*/build lib/modules/*/source
           tar -cvzf ../kernel-66-silvermont.tar.gz .
 
-      - name: 6. Subir Artifact
+      - name: 7. Subir Artifact
         uses: actions/upload-artifact@v4
         with:
           name: kernel-tkg-6.6-silvermont

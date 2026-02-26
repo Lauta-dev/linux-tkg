@@ -100,6 +100,7 @@ snd_hda_codec_generic
 snd_hda_codec_hdmi
 snd_hda_codec_intelhdmi
 snd_hda_codec_realtek_lib
+snd_hda_codec_realtek
 snd_hda_core
 snd_hda_intel
 snd_hda_scodec_component
@@ -138,3 +139,13 @@ videodev
 wmi
 wmi_bmof
 zram
+ahci
+libahci
+sd_mod
+xhci_pci
+xhci_hcd
+atkbd
+i2c_hid
+i2c_hid_acpi
+intel_agp
+lpc_ich
