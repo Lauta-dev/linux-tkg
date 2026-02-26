@@ -1,0 +1,58 @@
+name: Linux-TKG Silvermont Hyper-Light
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  tkg-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar Dependencias (Basado en README)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git build-essential libncurses-dev flex bison openssl \
+            libssl-dev dkms libelf-dev libudev-dev libpci-dev libiberty-dev autoconf \
+            xz-utils zstd bc ccache python3 kmod fakeroot
+
+      - name: Cache Kernel Sources
+        uses: actions/cache@v4
+        with:
+          path: linux-tkg/linux-src-git
+          key: linux-tkg-src-6.6
+          restore-keys: linux-tkg-src-
+
+      - name: Preparar linux-tkg
+        run: |
+          git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
+          cp customization.cfg linux-tkg/
+
+      - name: Compilar
+        run: |
+          cd linux-tkg
+          # Usamos 'config' primero para preparar y luego 'install' para empaquetar
+          ./install.sh script
+        env:
+          _no_confirm: "true"
+
+      - name: Capturar Paquete
+        run: |
+          mkdir -p release_files
+          # TKG en modo Arch genera un .pkg.tar.zst
+          find linux-tkg -name "*.pkg.tar.zst" -exec cp {} release_files/ \;
+          # Si no hizo el paquete, buscamos el binario
+          find linux-tkg/linux-src-git -name "vmlinuz*" -exec cp {} release_files/ \;
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: tkg-v2-${{ github.run_number }}
+          files: release_files/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
