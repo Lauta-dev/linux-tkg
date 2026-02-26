@@ -1,4 +1,4 @@
-name: Linux-TKG Silvermont Arch-Native Build
+name: Linux-TKG Silvermont Generic Build
 
 on:
   push:
@@ -8,50 +8,51 @@ on:
 jobs:
   tkg-build:
     runs-on: ubuntu-latest
-    # AQUÍ ESTÁ EL SECRETO: Usamos una imagen oficial de Arch
-    container:
-      image: archlinux:latest
-
     permissions:
       contents: write
-
     steps:
-      - name: Actualizar Arch e Instalar dependencias
-        run: |
-          pacman -Syu --noconfirm
-          # Instalamos la base de desarrollo de Arch
-          pacman -S --noconfirm git base-devel ncurses flake8 libelf openssl \
-            bison flex ccache xmlto kmod inetutils bc python
-
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Instalar Dependencias
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git build-essential libncurses-dev flex bison openssl \
+            libssl-dev dkms libelf-dev libudev-dev libpci-dev libiberty-dev autoconf \
+            xz-utils zstd bc ccache python3 kmod
+
       - name: Clonar y Preparar
         run: |
-          # Importante: TKG no deja correr makepkg como root (por seguridad)
-          # Pero en GitHub Actions somos root, así que usamos un pequeño truco
           git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
           cp customization.cfg linux-tkg/
 
-      - name: Compilar (Modo Arch Puro)
+      - name: Compilar
         run: |
           cd linux-tkg
-          # Permitimos que makepkg corra como root (solo para este build de GitHub)
-          export MAKEPKG_CONF="/etc/makepkg.conf"
-          # Usamos makepkg directamente como indica el README para Arch
-          # --noconfirm para que no pregunte nada
-          # --syncdeps para que instale lo que falte
-          # Se usa el comando de Arch oficial
-          chmod -R 777 .
-          sudo -u wheel makepkg --noconfirm -si || makepkg --noconfirm --allow-root
+          # Usamos 'config' para que parchee y prepare, y luego 'make' manual
+          # Esto evita que el script interactivo nos frene
+          ./install.sh config
+          
+          # Entramos a donde se descargó el kernel y compilamos a mano
+          cd linux-src-git
+          make -j$(nproc) bzImage
+          make -j$(nproc) modules
         env:
-          _distro: "Arch"
           _no_confirm: "true"
+          _distro: "Generic"
 
+      - name: Organizar Archivos
+        run: |
+          mkdir -p release_files
+          # El kernel compilado
+          cp linux-tkg/linux-src-git/arch/x86/boot/bzImage release_files/vmlinuz-tkg-silvermont
+          # El archivo de configuración por si querés verlo
+          cp linux-tkg/linux-src-git/.config release_files/kernel-config-utilizado
+          
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: tkg-arch-${{ github.run_number }}
-          files: linux-tkg/*.pkg.tar.zst
+          tag_name: tkg-gen-${{ github.run_number }}
+          files: release_files/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
