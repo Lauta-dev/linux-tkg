@@ -44,23 +44,31 @@ jobs:
           restore-keys: ccache-silvermont-
 
       - name: 5. Preparar Entorno TKG
+        env:
+          # Estas variables en la ENV fuerzan al script a no preguntar
+          _no_confirm: "true"
+          _kernel_release: "6.6"
+          _uproot: "false"
+          _script_only: "true"
+          _distro: "Generic"
         run: |
-          # 1. Clonamos el repo de TKG
+          # 1. Clonar si no existe
           if [ ! -d "linux-tkg" ]; then
             git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
           fi
           
-          # 2. PISAMOS el config de TKG con EL TUYO que está en la raíz de tu repo
-          # Asumo que tu archivo se llama "customization.cfg" en tu GitHub
-          cp customization.cfg linux-tkg/customization.cfg
+          # 2. Inyectar tu config si la tenés, sino crear carpeta logs
+          if [ -f "customization.cfg" ]; then
+            cp customization.cfg linux-tkg/customization.cfg
+          fi
+          mkdir -p linux-tkg/logs
           
           cd linux-tkg
-          mkdir -p logs
           
-          # 3. Corremos el config. 
-          # Como tu archivo ya tiene _no_confirm="true", no va a preguntar nada.
+          # 3. EL TRUCO FINAL: yes "" manda 'Enter' a todo lo que pregunte
+          # y usamos 'config' para que solo prepare el source.
           if [ ! -d "linux-src-git" ]; then
-            ./install.sh config
+            yes "" | ./install.sh config
           fi
 
       - name: 6. Poda Atómica y Configuración Profesional
