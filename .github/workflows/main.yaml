@@ -1,4 +1,4 @@
-name: Linux-TKG Silvermont Generic Build
+name: Linux-TKG Silvermont Extreme Build
 
 on:
   push:
@@ -26,24 +26,20 @@ jobs:
       options: --user root
 
     steps:
-      - name: 1. Sincronizar y Actualizar Toolchain (Fix Assembler)
+      - name: 1. Sincronizar Sistema y Toolchain
         run: |
-          # 1. Configurar llaves
           pacman-key --init
           pacman-key --populate archlinux
           pacman -Sy --noconfirm archlinux-keyring
-          
-          # 2. ACTUALIZACIÓN TOTAL: Esto es vital para que binutils y gcc coincidan
-          # Instalamos absolutamente todo lo necesario para evitar el error de ensamblador
           pacman -Syu --noconfirm
           pacman -S --needed --noconfirm git base-devel sudo bc ccache kmod cpio perl tar xz wget \
           pahole python-sphinx python-sphinx_rtd_theme patchutils xmlto docbook-xsl \
-          inetutils flex graphviz imagemagick bison libelf llvm clang rust
+          inetutils flex graphviz imagemagick bison libelf llvm clang
 
-      - name: 2. Checkout de tu repositorio
+      - name: 2. Checkout
         uses: actions/checkout@v4
 
-      - name: 3. Configurar Usuario y Carpetas
+      - name: 3. Configurar Usuario y Permisos
         run: |
           useradd -m user
           echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
@@ -51,33 +47,31 @@ jobs:
           mkdir -p ${{ env.PKGDEST }}
           chown -R user:user /home/user
 
-      - name: 4. Cachear fuentes del Kernel
-        uses: actions/cache@v4
-        with:
-          path: /home/user/sources
-          key: kernel-sources-${{ hashFiles('**/PKGBUILD') }}
-          restore-keys: |
-            kernel-sources-
-
-      - name: 5. Preparar Repositorio TKG
+      - name: 4. Clonar y Limpiar TKG
         run: |
-          # Clonar y limpiar para asegurar frescura
           git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git /home/user/linux-tkg
           cp customization.cfg /home/user/linux-tkg/
           cp modprobed.db /home/user/modprobed.db
           chown -R user:user /home/user/linux-tkg
           chown user:user /home/user/modprobed.db
 
-      - name: 6. Inyectar Parches de Limpieza
+      - name: 5. Parche Maestro Fix BTF y Assembler
         run: |
-          # Desactivar drivers de video innecesarios (Ahorra tiempo y evita errores de módulos)
+          # 1. Inyectamos comandos para desactivar BTF y ignorar errores de 'const' en libbpf
+          # Esto evita el error de 'cc1: all warnings being treated as errors'
+          sed -i '/_tkg_srcprep/a \  scripts/config --file "${_kernel_work_folder_abs}/.config" --disable CONFIG_DEBUG_INFO_BTF' /home/user/linux-tkg/PKGBUILD
+          
+          # 2. Forzamos la desactivación de drivers de video pesados
           sed -i '/_tkg_srcprep/a \  scripts/config --file "${_kernel_work_folder_abs}/.config" --disable CONFIG_DRM_AMDGPU --disable CONFIG_DRM_NOUVEAU --disable CONFIG_DRM_RADEON' /home/user/linux-tkg/PKGBUILD
 
-      - name: 7. Compilación Maestra (Makepkg)
+      - name: 6. Compilación (Con Flags de Seguridad)
         working-directory: /home/user/linux-tkg
         run: |
-          # Forzamos las variables y usamos 'yes' para automatizar
+          # KCFLAGS="-Wno-error" asegura que las advertencias de libbpf no maten el build
+          # PATH="/usr/bin:$PATH" asegura que gcc encuentre a 'as' (assembler)
           su -m user -c "export SRCDEST=${{ env.SRCDEST }}; \
+                      export KCFLAGS='-Wno-error'; \
+                      export PATH='/usr/bin:/usr/lib/ccache/bin:$PATH'; \
                       export _processor_opt=silvermont; \
                       export _cpusched=pds; \
                       export _distro=Arch; \
@@ -89,9 +83,9 @@ jobs:
                       export PKGDEST=${{ env.PKGDEST }}; \
                       yes '' | makepkg --noconfirm -s"
 
-      - name: 8. Subir Paquetes Finales (.pkg.tar.zst)
+      - name: 7. Subir Paquetes
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-N2807-silvermont-v17
+          name: kernel-N2807-silvermont-v18
           path: /home/user/reales_paquetes/*.pkg.tar.zst
