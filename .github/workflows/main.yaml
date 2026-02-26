@@ -1,4 +1,4 @@
-name: linux-tkg-build
+name: linux-tkg-build-silvermont
 
 on:
   push:
@@ -6,16 +6,6 @@ on:
   workflow_dispatch:
 
 env:
-  # --- Variables de TKG para que NO pregunte nada ---
-  _no_confirm: "true"
-  _kernel_release: "6.6"
-  _uproot: "false"
-  _script_only: "true"  # Algunas versiones todavía lo usan para no compilar
-  
-  # --- Tus variables de optimización ---
-  _processor_opt: "silvermont"
-  _cpusched: "pds"
-  _distro: "Generic"
   CCACHE_DIR: ${{ github.workspace }}/.ccache
 
 jobs:
@@ -25,135 +15,84 @@ jobs:
       - name: 1. Checkout del Repositorio
         uses: actions/checkout@v4
 
-      - name: 2. Dependencias de Compilación
+      - name: 2. Dependencias
         run: |
           sudo apt-get update
           sudo apt-get install -y git build-essential bc bison flex libelf-dev libssl-dev make ccache dwarves libncurses-dev xz-utils kmod python3
 
-      - name: 3. Cache del Código Fuente (Kernel.org Fetch)
+      - name: 3. Caches
         uses: actions/cache@v4
         with:
-          path: linux-tkg/linux-src-git
-          key: kernel-src-6.6
+          path: |
+            linux-tkg/linux-src-git
+            .ccache
+          key: kernel-build-${{ github.sha }}
+          restore-keys: kernel-build-
 
-      - name: 4. Cache de Compilación (ccache)
-        uses: actions/cache@v4
-        with:
-          path: .ccache
-          key: ccache-silvermont-${{ github.sha }}
-          restore-keys: ccache-silvermont-
-
-      - name: 5. Preparar Entorno TKG
-        env:
-          # Estas variables en la ENV fuerzan al script a no preguntar
-          _no_confirm: "true"
-          _kernel_release: "6.6"
-          _uproot: "false"
-          _script_only: "true"
-          _distro: "Generic"
+      - name: 4. Setup TKG (Usando tu customization.cfg)
         run: |
-          # 1. Clonar si no existe
           if [ ! -d "linux-tkg" ]; then
             git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
           fi
           
-          # 2. Inyectar tu config si la tenés, sino crear carpeta logs
-          if [ -f "customization.cfg" ]; then
-            cp customization.cfg linux-tkg/customization.cfg
-          fi
+          # PISAR con tu archivo (debe estar en la raíz de tu repo)
+          cp customization.cfg linux-tkg/customization.cfg
+          
+          # Forzar carpeta de logs para evitar el error de mv
           mkdir -p linux-tkg/logs
           
           cd linux-tkg
-          
-          # 3. EL TRUCO FINAL: yes "" manda 'Enter' a todo lo que pregunte
-          # y usamos 'config' para que solo prepare el source.
-          if [ ! -d "linux-src-git" ]; then
-            yes "" | ./install.sh config
-          fi
+          # Con _logging_use_script="no" en tu cfg, esto ya no rompe la tubería
+          yes "" | ./install.sh config
 
-      - name: 6. Poda Atómica y Configuración Profesional
+      - name: 5. Poda Atómica (Post-TKG)
         working-directory: linux-tkg/linux-src-git
         run: |
-          # Generar base limpia
-          make x86_64_defconfig
+          # Sincronizar con lo que TKG preparó
+          make olddefconfig
           
-          # --- SECCIÓN: MUERTE A SERVIDORES Y SUPERCOMPUS ---
-          scripts/config --disable CONFIG_NUMA
-          scripts/config --disable CONFIG_MAXSMP
-          scripts/config --disable CONFIG_SCHED_SMT
-          scripts/config --disable CONFIG_VIRTUALIZATION
-          scripts/config --disable CONFIG_HYPERV
-          scripts/config --disable CONFIG_XEN
-          scripts/config --disable CONFIG_HUGETLBFS
-          scripts/config --disable CONFIG_TRANSPARENT_HUGEPAGE
+          # --- SECCIÓN: MUERTE A AMD Y SERVIDORES ---
+          scripts/config --disable CONFIG_CPU_SUP_AMD \
+                         --disable CONFIG_AMD_NB \
+                         --disable CONFIG_NUMA \
+                         --disable CONFIG_VIRTUALIZATION \
+                         --disable CONFIG_HYPERV \
+                         --disable CONFIG_XEN
           
-          # --- SECCIÓN: LIMPIEZA DE SEGURIDAD PESADA (Hardening) ---
-          scripts/config --disable CONFIG_SLAB_FREELIST_RANDOM
-          scripts/config --disable CONFIG_SLAB_FREELIST_HARDENED
-          scripts/config --disable CONFIG_HARDENED_USERCOPY
-          scripts/config --disable CONFIG_FORTIFY_SOURCE
+          # --- SECCIÓN: MUERTE A FILESYSTEMS PESADOS ---
+          scripts/config --disable CONFIG_XFS_FS \
+                         --disable CONFIG_BTRFS_FS \
+                         --disable CONFIG_JFS \
+                         --disable CONFIG_REISERFS
           
-          # --- SECCIÓN: MUERTE AL DEBUG (Ahorro masivo de espacio) ---
-          scripts/config --disable CONFIG_DEBUG_KERNEL
-          scripts/config --disable CONFIG_DEBUG_INFO
-          scripts/config --disable CONFIG_KGDB
-          scripts/config --disable CONFIG_FTRACE
+          # --- SECCIÓN: ASEGURAR TUS ESENCIALES (Silvermont + Multimedia) ---
+          scripts/config --enable CONFIG_MSILVERMONT \
+                         --enable CONFIG_GENERIC_CPU_V2 \
+                         --enable CONFIG_SND_HDA_CODEC_HDMI \
+                         --enable CONFIG_MEDIA_CAMERA_SUPPORT \
+                         --enable CONFIG_VIDEO_V4L2 \
+                         --set-val CONFIG_NR_CPUS 2
           
-          # --- SECCIÓN: VIDEO Y RED (Solo lo que tenés) ---
-          scripts/config --disable CONFIG_DRM_AMDGPU
-          scripts/config --disable CONFIG_DRM_RADEON
-          scripts/config --disable CONFIG_DRM_NOUVEAU
-          scripts/config --disable CONFIG_WLAN_VENDOR_MEDIATEK
-          scripts/config --disable CONFIG_WLAN_VENDOR_RALINK
-          scripts/config --disable CONFIG_WLAN_VENDOR_BROADCOM
-          scripts/config --enable CONFIG_NET_VENDOR_INTEL
-          scripts/config --enable CONFIG_NET_VENDOR_REALTEK
-          
-          # --- SECCIÓN: FILESYSTEMS (El kit del usuario) ---
-          scripts/config --enable CONFIG_EXT4_FS
-          scripts/config --enable CONFIG_VFAT_FS
-          scripts/config --enable CONFIG_FAT_FS
-          scripts/config --enable CONFIG_NTFS3_FS
-          scripts/config --enable CONFIG_ISO9660_FS
-          scripts/config --disable CONFIG_XFS_FS --disable CONFIG_BTRFS_FS --disable CONFIG_JFS --disable CONFIG_REISERFS
-          
-          # --- SECCIÓN: MULTIMEDIA Y LEGACY ---
-          scripts/config --enable CONFIG_MEDIA_SUPPORT
-          scripts/config --enable CONFIG_MEDIA_CAMERA_SUPPORT
-          scripts/config --enable CONFIG_VIDEO_V4L2
-          scripts/config --disable CONFIG_MEDIA_DIGITAL_TV_SUPPORT
-          scripts/config --disable CONFIG_HAMRADIO --disable CONFIG_JOYSTICK --disable CONFIG_CAN --disable CONFIG_PARPORT
-          
-          # --- SECCIÓN: OPTIMIZACIÓN SILVERMONT ---
-          scripts/config --enable CONFIG_MSILVERMONT
-          scripts/config --enable CONFIG_GENERIC_CPU_V2
-          scripts/config --set-val CONFIG_NR_CPUS 2
-          scripts/config --enable CONFIG_SND_HDA_CODEC_HDMI
-          
-          # Aplicar cambios
+          # Aplicar poda final
           make olddefconfig
 
-      - name: 7. Compilación con CCACHE
+      - name: 6. Compilación con CCACHE
         working-directory: linux-tkg/linux-src-git
         run: |
-          ccache -z
           make -j$(nproc) CC="ccache gcc" KCFLAGS="-Wno-error" WERROR=0 bzImage modules
-          ccache -s
 
-      - name: 8. Empaquetado Profesional
+      - name: 7. Empaquetado
         run: |
           mkdir -p output/boot
-          # Nombre fijo para no romper tus entradas de systemd-boot
           cp linux-tkg/linux-src-git/arch/x86/boot/bzImage output/boot/vmlinuz-linux-tkg
           cd linux-tkg/linux-src-git
           sudo make INSTALL_MOD_PATH=../../output modules_install
           cd ../../output
-          # Limpiar enlaces simbólicos rotos antes de comprimir
           rm -f lib/modules/*/build lib/modules/*/source
-          tar -cvzf ../kernel-tkg.tar.gz .
+          tar -cvzf ../kernel-tkg-silvermont.tar.gz .
 
-      - name: 9. Subir Artifact
+      - name: 8. Subir Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-tkg-silvermont
-          path: kernel-tkg.tar.gz
+          name: kernel-tkg-final
+          path: kernel-tkg-silvermont.tar.gz
