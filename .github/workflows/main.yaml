@@ -1,98 +1,66 @@
-name: Linux-TKG Silvermont Extreme Build
+name: Linux-TKG Silvermont (Ubuntu Runner -> Raw Tarball)
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
 
-env:
-  _processor_opt: "silvermont"
-  _cpusched: "pds"
-  _compiler: "gcc"
-  _distro: "Arch"
-  _kernel_on_diet: "false" 
-  _modprobeddb: "true"
-  _modprobeddb_db_path: "/home/user/modprobed.db"
-  _debugdisable: "true"
-  _no_confirm: "true"
-  PKGDEST: "/home/user/reales_paquetes"
-  SRCDEST: "/home/user/sources"
-
 jobs:
-  build-kernel:
-    runs-on: ubuntu-latest
-    container: 
-      image: archlinux:latest
-      options: --user root
-
+  build:
+    runs-on: ubuntu-22.04 # El entorno más estable para compilar
     steps:
-      - name: 1. Sincronizar Sistema y Toolchain (Fix Assembler)
-        run: |
-          pacman-key --init
-          pacman-key --populate archlinux
-          pacman -Sy --noconfirm archlinux-keyring
-          pacman -Syu --noconfirm
-          pacman -S --needed --noconfirm git base-devel sudo bc ccache kmod cpio perl tar xz wget \
-          pahole python-sphinx python-sphinx_rtd_theme patchutils xmlto docbook-xsl \
-          inetutils flex graphviz imagemagick bison libelf llvm clang
-
-      - name: 2. Checkout
+      - name: 1. Checkout del repositorio
         uses: actions/checkout@v4
 
-      - name: 3. Configurar Usuario y Carpetas
+      - name: 2. Instalar Dependencias de Compilación (Ubuntu)
         run: |
-          useradd -m user
-          echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-          mkdir -p ${{ env.SRCDEST }}
-          mkdir -p ${{ env.PKGDEST }}
-          chown -R user:user /home/user
+          sudo apt-get update
+          sudo apt-get install -y git build-essential bc bison flex libelf-dev libssl-dev \
+          make ccache dwarves libncurses-dev xz-utils kmod
 
-      - name: 4. Cachear fuentes del Kernel
-        uses: actions/cache@v4
-        with:
-          path: /home/user/sources
-          key: kernel-sources-${{ hashFiles('**/PKGBUILD') }}
-          restore-keys: |
-            kernel-sources-
-
-      - name: 5. Preparar Repositorio TKG
+      - name: 3. Clonar TKG y Preparar Config
         run: |
-          git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git /home/user/linux-tkg
-          cp customization.cfg /home/user/linux-tkg/
-          cp modprobed.db /home/user/modprobed.db
-          chown -R user:user /home/user/linux-tkg
-          chown user:user /home/user/modprobed.db
+          git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
+          cp customization.cfg linux-tkg/
+          cp modprobed.db linux-tkg/
+          
+          # Forzamos las variables para tu Silvermont y PDS
+          cd linux-tkg
+          sed -i 's/^_processor_opt=.*/_processor_opt="silvermont"/' customization.cfg
+          sed -i 's/^_cpusched=.*/_cpusched="pds"/' customization.cfg
+          sed -i 's/^_modprobeddb=.*/_modprobeddb="true"/' customization.cfg
+          sed -i "s|#_modprobeddb_db_path=.*|_modprobeddb_db_path=\"$GITHUB_WORKSPACE/modprobed.db\"|" customization.cfg
+          # IMPORTANTE: Desactivamos el empaquetado nativo para que no intente hacer .deb
+          sed -i 's/^_distro=.*/_distro="Generic"/' customization.cfg
 
-      - name: 6. Parche Maestro Fix BTF y Advertencias
+      - name: 4. Compilar Kernel
         run: |
-          # Desactivamos BTF (que causa el error de libbpf.c) y drivers pesados
-          # Inyectamos flags para que GCC no se detenga por advertencias (-Wno-error)
-          sed -i '/_tkg_srcprep/a \  scripts/config --file "${_kernel_work_folder_abs}/.config" --disable CONFIG_DEBUG_INFO_BTF' /home/user/linux-tkg/PKGBUILD
-          sed -i '/_tkg_srcprep/a \  scripts/config --file "${_kernel_work_folder_abs}/.config" --disable CONFIG_DRM_AMDGPU --disable CONFIG_DRM_NOUVEAU --disable CONFIG_DRM_RADEON' /home/user/linux-tkg/PKGBUILD
+          cd linux-tkg
+          # Usamos WERROR=0 para que no aborte por advertencias tontas de GCC
+          export KCFLAGS="-Wno-error"
+          # ./install.sh en modo Generic compila y deja los archivos en una carpeta temporal
+          yes "" | ./install.sh install
 
-      - name: 7. Compilación (Con Flags de Emergencia)
-        working-directory: /home/user/linux-tkg
+      - name: 5. Empaquetar Kernel + Módulos en .tar.gz
         run: |
-          # KCFLAGS="-Wno-error" permite que el kernel ignore los fallos de código en libbpf
-          # PATH forzado para que encuentre el assembler (as)
-          su -m user -c "export SRCDEST=${{ env.SRCDEST }}; \
-                      export KCFLAGS='-Wno-error'; \
-                      export MAKEFLAGS='-j$(nproc) WERROR=0'; \
-                      export PATH='/usr/bin:/usr/lib/ccache/bin:$PATH'; \
-                      export _processor_opt=silvermont; \
-                      export _cpusched=pds; \
-                      export _distro=Arch; \
-                      export _kernel_on_diet=false; \
-                      export _modprobeddb=true; \
-                      export _modprobeddb_db_path=/home/user/modprobed.db; \
-                      export _debugdisable=true; \
-                      export _no_confirm=true; \
-                      export PKGDEST=${{ env.PKGDEST }}; \
-                      yes '' | makepkg --noconfirm -s"
+          # Creamos una carpeta de estructura limpia
+          mkdir -p output/boot
+          
+          # 1. Copiamos el kernel comprimido y el mapa de símbolos
+          cp linux-tkg/linux-src-git/arch/x86/boot/bzImage output/boot/vmlinuz-tkg-silvermont
+          cp linux-tkg/linux-src-git/System.map output/boot/
+          cp linux-tkg/linux-src-git/.config output/boot/config-tkg-silvermont
+          
+          # 2. Instalamos los módulos en nuestra carpeta temporal
+          cd linux-tkg/linux-src-git
+          sudo make INSTALL_MOD_PATH=../../output modules_install
+          
+          # 3. Creamos el archivo .tar.gz final con todo
+          cd ../../output
+          tar -cvzf ../kernel-silvermont-final.tar.gz .
 
-      - name: 8. Subir Paquetes Finales
-        if: success()
+      - name: 6. Subir Artifact (.tar.gz)
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-silvermont-v19
-          path: /home/user/reales_paquetes/*.pkg.tar.zst
+          name: linux-tkg-silvermont-raw-tarball
+          path: kernel-silvermont-final.tar.gz
