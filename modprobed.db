@@ -21,9 +21,12 @@ drm_buddy
 drm_display_helper
 dvb_core
 efivarfs
+ext4
+f2fs
 fat
 fuse
 ghash_clmulni_intel
+hid_generic
 i2c_algo_bit
 i2c_i801
 i2c_mux
@@ -63,6 +66,7 @@ mmc_core
 mousedev
 mtd
 nfnetlink
+ntfs3
 pkcs8_key_parser
 platform_profile
 platform_temperature_control
@@ -119,6 +123,9 @@ spi_intel
 spi_intel_platform
 spi_nor
 ttm
+uas
+usbhid
+usb_storage
 uvc
 uvcvideo
 vfat
@@ -131,11 +138,3 @@ videodev
 wmi
 wmi_bmof
 zram
-usb_storage
-uas
-usbhid
-hid_generic
-ext4
-f2fs
-vfat
-ntfs3

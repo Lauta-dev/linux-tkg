@@ -1,98 +1,52 @@
-name: linux-tkg-build-silvermont
+name: linux-6.6-tkg-silvermont
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
 
-env:
-  CCACHE_DIR: ${{ github.workspace }}/.ccache
-
 jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: 1. Checkout del Repositorio
+      - name: 1. Checkout
         uses: actions/checkout@v4
 
-      - name: 2. Dependencias
+      - name: 2. Preparar Base de Datos de Módulos
+        run: |
+          mkdir -p ~/.config
+          # Inyectamos tu lista (asumiendo que el archivo se llama mis_modulos.txt en tu repo)
+          cat modprobed.db > ~/.config/modprobed.db
+
+      - name: 3. Instalar Dependencias
         run: |
           sudo apt-get update
-          sudo apt-get install -y git build-essential bc bison flex libelf-dev libssl-dev make ccache dwarves libncurses-dev xz-utils kmod python3
+          sudo apt-get install -y git build-essential bc bison flex libelf-dev libssl-dev make ccache dwarves libncurses-dev xz-utils kmod
 
-      - name: 3. Caches
-        uses: actions/cache@v4
-        with:
-          path: |
-            linux-tkg/linux-src-git
-            .ccache
-          key: kernel-build-${{ github.sha }}
-          restore-keys: kernel-build-
-
-      - name: 4. Setup TKG (Usando tu customization.cfg)
+      - name: 4. Ejecutar Linux-TKG
         run: |
-          if [ ! -d "linux-tkg" ]; then
-            git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
-          fi
-          
-          # PISAR con tu archivo (debe estar en la raíz de tu repo)
+          git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
           cp customization.cfg linux-tkg/customization.cfg
-          
-          # Forzar carpeta de logs para evitar el error de mv
-          mkdir -p linux-tkg/logs
-          
           cd linux-tkg
-          # Con _logging_use_script="no" en tu cfg, esto ya no rompe la tubería
-          yes "" | ./install.sh config
+          # Usamos 'install' para que aplique parches, modprobed-db y compile.
+          # Como _install_after_building="no", no intentará instalarlo en la VM de GitHub.
+          yes "" | ./install.sh install
 
-      - name: 5. Poda Atómica (Post-TKG)
-        working-directory: linux-tkg/linux-src-git
-        run: |
-          # Sincronizar con lo que TKG preparó
-          make olddefconfig
-          
-          # --- SECCIÓN: MUERTE A AMD Y SERVIDORES ---
-          scripts/config --disable CONFIG_CPU_SUP_AMD \
-                         --disable CONFIG_AMD_NB \
-                         --disable CONFIG_NUMA \
-                         --disable CONFIG_VIRTUALIZATION \
-                         --disable CONFIG_HYPERV \
-                         --disable CONFIG_XEN
-          
-          # --- SECCIÓN: MUERTE A FILESYSTEMS PESADOS ---
-          scripts/config --disable CONFIG_XFS_FS \
-                         --disable CONFIG_BTRFS_FS \
-                         --disable CONFIG_JFS \
-                         --disable CONFIG_REISERFS
-          
-          # --- SECCIÓN: ASEGURAR TUS ESENCIALES (Silvermont + Multimedia) ---
-          scripts/config --enable CONFIG_MSILVERMONT \
-                         --enable CONFIG_GENERIC_CPU_V2 \
-                         --enable CONFIG_SND_HDA_CODEC_HDMI \
-                         --enable CONFIG_MEDIA_CAMERA_SUPPORT \
-                         --enable CONFIG_VIDEO_V4L2 \
-                         --set-val CONFIG_NR_CPUS 2
-          
-          # Aplicar poda final
-          make olddefconfig
-
-      - name: 6. Compilación con CCACHE
-        working-directory: linux-tkg/linux-src-git
-        run: |
-          make -j$(nproc) CC="ccache gcc" KCFLAGS="-Wno-error" WERROR=0 bzImage modules
-
-      - name: 7. Empaquetado
+      - name: 5. Empaquetado de Binarios
         run: |
           mkdir -p output/boot
-          cp linux-tkg/linux-src-git/arch/x86/boot/bzImage output/boot/vmlinuz-linux-tkg
+          # Buscamos el bzImage generado en la carpeta de fuentes de TKG
+          cp linux-tkg/linux-src-git/arch/x86/boot/bzImage output/boot/vmlinuz-linux66-tkg
           cd linux-tkg/linux-src-git
+          # Instalamos módulos en nuestra carpeta de salida
           sudo make INSTALL_MOD_PATH=../../output modules_install
           cd ../../output
+          # Limpiamos enlaces simbólicos rotos antes de comprimir
           rm -f lib/modules/*/build lib/modules/*/source
-          tar -cvzf ../kernel-tkg-silvermont.tar.gz .
+          tar -cvzf ../kernel-66-silvermont.tar.gz .
 
-      - name: 8. Subir Artifact
+      - name: 6. Subir Kernel
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-tkg-final
-          path: kernel-tkg-silvermont.tar.gz
+          name: kernel-66-optimizado
+          path: kernel-66-silvermont.tar.gz
