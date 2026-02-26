@@ -5,57 +5,52 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  _processor_opt: "silvermont"
+  _cpusched: "pds"
+  _compiler: "gcc"
+  _distro: "Arch"
+  _kernel_on_diet: "true"
+  _modprobeddb: "true"
+  _modprobeddb_db_path: "${{ github.workspace }}/modprobed.db"
+  _debugdisable: "true"
+  _no_confirm: "true"
+  PKGDEST: "${{ github.workspace }}/reales_paquetes"
+
 jobs:
-  tkg-build:
+  build-kernel:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    container: archlinux:latest
+
     steps:
+      - name: Instalar Dependencias Críticas
+        run: |
+          pacman -Syu --noconfirm git base-devel sudo bc ccache kmod cpio perl tar xz wget
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Instalar Dependencias
+      - name: Preparar Usuario y Carpetas
         run: |
-          sudo apt-get update
-          sudo apt-get install -y git build-essential libncurses-dev flex bison openssl \
-            libssl-dev dkms libelf-dev libudev-dev libpci-dev libiberty-dev autoconf \
-            xz-utils zstd bc ccache python3 kmod
+          useradd user -m
+          echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+          chown -R user:user .
+          mkdir -p ${{ env.PKGDEST }}
+          chown -R user:user ${{ env.PKGDEST }}
 
-      - name: Clonar y Preparar
+      - name: Inyectar Limpieza de Drivers (AMD/NVIDIA)
         run: |
-          git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
-          cp customization.cfg linux-tkg/
+          # Buscamos la función prepare() y metemos los disable ahí adentro
+          # Usamos un método más seguro para el PKGBUILD de TKG
+          sed -i '/_tkg_srcprep/a \  scripts/config --file "${_kernel_work_folder_abs}/.config" --disable CONFIG_DRM_AMDGPU --disable CONFIG_DRM_NOUVEAU --disable CONFIG_DRM_RADEON' PKGBUILD
 
-      - name: Compilar
+      - name: Compilar (Makepkg)
         run: |
-          cd linux-tkg
-          mkdir -p logs
-          # El comando 'yes ""' responde 'Enter' a todas las preguntas
-          # Las variables de entorno fuerzan las opciones principales
-          yes "" | _compiler="gcc" _cpusched="pds" _distro="Generic" _no_confirm="true" _install_interactively="false" ./install.sh config
-          
-          # Una vez configurado, entramos a compilar a mano para evitar más prompts
-          cd linux-src-git
-          make -j$(nproc) bzImage
-          make -j$(nproc) modules
-        env:
-          _compiler: "gcc"
-          _cpusched: "pds"
-          _distro: "Generic"
-          _no_confirm: "true"
+          # El yes '' es para que acepte todas las configs por defecto
+          su user -c "yes '' | makepkg --noconfirm -s"
 
-      - name: Organizar Archivos
-        run: |
-          mkdir -p release_files
-          # El kernel compilado
-          cp linux-tkg/linux-src-git/arch/x86/boot/bzImage release_files/vmlinuz-tkg-silvermont
-          # El archivo de configuración por si querés verlo
-          cp linux-tkg/linux-src-git/.config release_files/kernel-config-utilizado
-          
-      - name: Release
-        uses: softprops/action-gh-release@v2
+      - name: Subir Paquetes
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: tkg-gen-${{ github.run_number }}
-          files: release_files/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: kernel-tkg-silvermont-final
+          path: ./*.pkg.tar.zst
