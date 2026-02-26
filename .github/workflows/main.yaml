@@ -26,7 +26,7 @@ jobs:
       options: --user root
 
     steps:
-      - name: 1. Sincronizar Sistema y Toolchain
+      - name: 1. Sincronizar Sistema y Toolchain (Fix Assembler)
         run: |
           pacman-key --init
           pacman-key --populate archlinux
@@ -39,7 +39,7 @@ jobs:
       - name: 2. Checkout
         uses: actions/checkout@v4
 
-      - name: 3. Configurar Usuario y Permisos
+      - name: 3. Configurar Usuario y Carpetas
         run: |
           useradd -m user
           echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
@@ -47,7 +47,15 @@ jobs:
           mkdir -p ${{ env.PKGDEST }}
           chown -R user:user /home/user
 
-      - name: 4. Clonar y Limpiar TKG
+      - name: 4. Cachear fuentes del Kernel
+        uses: actions/cache@v4
+        with:
+          path: /home/user/sources
+          key: kernel-sources-${{ hashFiles('**/PKGBUILD') }}
+          restore-keys: |
+            kernel-sources-
+
+      - name: 5. Preparar Repositorio TKG
         run: |
           git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git /home/user/linux-tkg
           cp customization.cfg /home/user/linux-tkg/
@@ -55,22 +63,21 @@ jobs:
           chown -R user:user /home/user/linux-tkg
           chown user:user /home/user/modprobed.db
 
-      - name: 5. Parche Maestro Fix BTF y Assembler
+      - name: 6. Parche Maestro Fix BTF y Advertencias
         run: |
-          # 1. Inyectamos comandos para desactivar BTF y ignorar errores de 'const' en libbpf
-          # Esto evita el error de 'cc1: all warnings being treated as errors'
+          # Desactivamos BTF (que causa el error de libbpf.c) y drivers pesados
+          # Inyectamos flags para que GCC no se detenga por advertencias (-Wno-error)
           sed -i '/_tkg_srcprep/a \  scripts/config --file "${_kernel_work_folder_abs}/.config" --disable CONFIG_DEBUG_INFO_BTF' /home/user/linux-tkg/PKGBUILD
-          
-          # 2. Forzamos la desactivación de drivers de video pesados
           sed -i '/_tkg_srcprep/a \  scripts/config --file "${_kernel_work_folder_abs}/.config" --disable CONFIG_DRM_AMDGPU --disable CONFIG_DRM_NOUVEAU --disable CONFIG_DRM_RADEON' /home/user/linux-tkg/PKGBUILD
 
-      - name: 6. Compilación (Con Flags de Seguridad)
+      - name: 7. Compilación (Con Flags de Emergencia)
         working-directory: /home/user/linux-tkg
         run: |
-          # KCFLAGS="-Wno-error" asegura que las advertencias de libbpf no maten el build
-          # PATH="/usr/bin:$PATH" asegura que gcc encuentre a 'as' (assembler)
+          # KCFLAGS="-Wno-error" permite que el kernel ignore los fallos de código en libbpf
+          # PATH forzado para que encuentre el assembler (as)
           su -m user -c "export SRCDEST=${{ env.SRCDEST }}; \
                       export KCFLAGS='-Wno-error'; \
+                      export MAKEFLAGS='-j$(nproc) WERROR=0'; \
                       export PATH='/usr/bin:/usr/lib/ccache/bin:$PATH'; \
                       export _processor_opt=silvermont; \
                       export _cpusched=pds; \
@@ -83,9 +90,9 @@ jobs:
                       export PKGDEST=${{ env.PKGDEST }}; \
                       yes '' | makepkg --noconfirm -s"
 
-      - name: 7. Subir Paquetes
+      - name: 8. Subir Paquetes Finales
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-N2807-silvermont-v18
+          name: kernel-silvermont-v19
           path: /home/user/reales_paquetes/*.pkg.tar.zst
