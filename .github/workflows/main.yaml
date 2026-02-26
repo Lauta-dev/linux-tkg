@@ -43,9 +43,15 @@ jobs:
             git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
           fi
           cd linux-tkg
+          # Crear carpeta de logs para que el script de TKG no falle al mover archivos
+          mkdir -p logs
+          
+          # Configurar versión 6.6
           sed -i 's/^_kernel_release=.*/_kernel_release="6.6"/' customization.cfg
+          
+          # Cambiamos 'script_only' por 'config' que es el argumento actual
           if [ ! -d "linux-src-git" ]; then
-            ./install.sh script_only
+            ./install.sh config
           fi
 
       - name: 6. Poda Atómica y Configuración Profesional
