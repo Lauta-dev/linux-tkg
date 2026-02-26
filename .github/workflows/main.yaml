@@ -6,10 +6,16 @@ on:
   workflow_dispatch:
 
 env:
+  # --- Variables de TKG para que NO pregunte nada ---
+  _no_confirm: "true"
+  _kernel_release: "6.6"
+  _uproot: "false"
+  _script_only: "true"  # Algunas versiones todavía lo usan para no compilar
+  
+  # --- Tus variables de optimización ---
   _processor_opt: "silvermont"
   _cpusched: "pds"
   _distro: "Generic"
-  _compiler_optimization_level: "2"
   CCACHE_DIR: ${{ github.workspace }}/.ccache
 
 jobs:
@@ -39,17 +45,20 @@ jobs:
 
       - name: 5. Preparar Entorno TKG
         run: |
+          # 1. Clonamos el repo de TKG
           if [ ! -d "linux-tkg" ]; then
             git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
           fi
+          
+          # 2. PISAMOS el config de TKG con EL TUYO que está en la raíz de tu repo
+          # Asumo que tu archivo se llama "customization.cfg" en tu GitHub
+          cp customization.cfg linux-tkg/customization.cfg
+          
           cd linux-tkg
-          # Crear carpeta de logs para que el script de TKG no falle al mover archivos
           mkdir -p logs
           
-          # Configurar versión 6.6
-          sed -i 's/^_kernel_release=.*/_kernel_release="6.6"/' customization.cfg
-          
-          # Cambiamos 'script_only' por 'config' que es el argumento actual
+          # 3. Corremos el config. 
+          # Como tu archivo ya tiene _no_confirm="true", no va a preguntar nada.
           if [ ! -d "linux-src-git" ]; then
             ./install.sh config
           fi
