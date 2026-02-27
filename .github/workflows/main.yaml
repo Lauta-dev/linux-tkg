@@ -1,78 +1,325 @@
-name: linux-6.6-tkg-silvermont
+name: Compile & Release Linux-TKG 6.6 LTS
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    branches:
+      - '6.6-latest-tkg'
+
+permissions:
+  contents: write
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
-    steps:
-      - name: 1. Checkout
-        uses: actions/checkout@v4
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: archlinux:latest
+      options: --privileged
 
-      - name: 2. Cache de Kernel y Ccache
+    steps:
+      # ─────────────────────────────────────────────
+      # 0. Generar tag dinámico (fecha + short SHA)
+      # ─────────────────────────────────────────────
+      - name: Generate release tag
+        id: tag
+        run: |
+          TAG="v6.6-$(date +'%Y%m%d')-$(echo ${{ github.sha }} | cut -c1-7)"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Tag generado: $TAG"
+
+      # ─────────────────────────────────────────────
+      # 1. Checkout del repo propio
+      # ─────────────────────────────────────────────
+      - name: Checkout lauta-dev/linux-tkg
+        uses: actions/checkout@v4
+        with:
+          repository: 'lauta-dev/linux-tkg'
+          ref: '6.6-latest-tkg'
+          path: 'myrepo'
+
+      # ─────────────────────────────────────────────
+      # 2. Cache de paquetes de pacman
+      # ─────────────────────────────────────────────
+      - name: Cache pacman packages
         uses: actions/cache@v4
         with:
-          path: |
-            # Cacheamos el clon de git para evitar el fetch completo
-            linux-tkg/linux-kernel.git
-            # Cacheamos la carpeta de trabajo
-            linux-tkg/linux-src-git
-            # Cacheamos los binarios de ccache
-            .ccache
-          # La clave incluye la versión para no mezclar kernels diferentes
-          key: linux-6.6-silvermont-${{ runner.os }}-${{ github.sha }}
-          # restore-keys permite recuperar el cache de la ejecución anterior
+          path: /var/cache/pacman/pkg
+          key: pacman-v1
           restore-keys: |
-            linux-6.6-silvermont-${{ runner.os }}-
+            pacman-
 
-      - name: 3. Preparar Base de Datos (Fake LSMOD)
+      # ─────────────────────────────────────────────
+      # 3. Dependencias del sistema
+      # ─────────────────────────────────────────────
+      - name: Install System Tools
         run: |
-          awk '{print $1 " 0 0"}' modprobed.db > /home/runner/modprobed.db
+          pacman-key --init
+          pacman-key --populate archlinux
+          pacman -Syu --noconfirm --needed \
+            git base-devel sudo \
+            xmlto kmod inetutils bc libelf \
+            python pahole cpio perl tar xz zstd
 
-      - name: 4. Instalar Dependencias
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git build-essential bc bison flex libelf-dev libssl-dev make ccache dwarves libncurses-dev xz-utils kmod
-
-      - name: 5. Ejecutar Linux-TKG
-        run: |
-          # Clonamos solo si no existe (por el cache)
-          if [ ! -d "linux-tkg" ]; then
-            git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
-          fi
-          
-          cp customization.cfg linux-tkg/customization.cfg
-          
-          cd linux-tkg
-          # IMPORTANTE: El script detectará automáticamente las carpetas linux-kernel.git
-          # y linux-src-git si ya existen gracias al cache.
-          yes "" | ./install.sh install
-
-      - name: 5. Empaquetado de Binarios
-        run: |
-          # Creamos la carpeta de salida
-          mkdir -p output/boot
-          
-          # 1. Copiar el Kernel (el binario ejecutable)
-          cp linux-tkg/linux-src-git/arch/x86/boot/bzImage output/boot/vmlinuz-linux66-tkg-silvermont
-          
-          # 2. Instalar los Módulos en la carpeta output
-          cd linux-tkg/linux-src-git
-          sudo make INSTALL_MOD_PATH=../../output modules_install
-          
-          # 3. Limpiar y Comprimir (usando sudo para evitar errores de permisos)
-          cd ../../output
-          sudo rm -f lib/modules/*/build lib/modules/*/source
-          sudo tar -cvzf ../kernel-66-silvermont.tar.gz .
-          
-          # 4. Cambiar el dueño del archivo final para que el Action pueda subirlo
-          sudo chown $USER:$USER ../kernel-66-silvermont.tar.gz
-
-      - name: 7. Subir Artifact
-        uses: actions/upload-artifact@v4
+      # ─────────────────────────────────────────────
+      # 4. Checkout de Frogging-Family/linux-tkg
+      # ─────────────────────────────────────────────
+      - name: Checkout Frogging-Family/linux-tkg
+        uses: actions/checkout@v4
         with:
-          name: kernel-tkg-6.6-silvermont
-          path: kernel-66-silvermont.tar.gz
+          repository: 'Frogging-Family/linux-tkg'
+          path: 'linux-tkg'
+
+      # ─────────────────────────────────────────────
+      # 5. Cache del tarball del kernel 6.6
+      #    TKG descarga linux-6.6.tar.xz (~130 MB) en src/
+      #    Si el cache existe, TKG lo detecta y no re-descarga.
+      # ─────────────────────────────────────────────
+      - name: Cache kernel source tarball
+        id: cache-kernel
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/linux-tkg/src
+          key: kernel-src-6.6-${{ hashFiles('myrepo/customization.cfg') }}
+          restore-keys: |
+            kernel-src-6.6-
+
+      # ─────────────────────────────────────────────
+      # 6. Setup: modprobed.db + customization.cfg
+      # ─────────────────────────────────────────────
+      - name: Setup modprobed.db and config
+        run: |
+          mkdir -p /home/runner/
+          cp ${{ github.workspace }}/myrepo/modprobed.db /home/runner/modprobed.db
+          cp ${{ github.workspace }}/myrepo/customization.cfg \
+             ${{ github.workspace }}/linux-tkg/customization.cfg
+
+      # ─────────────────────────────────────────────
+      # 7. Enforce critical configs
+      #    Genera config-fragment.cfg SIN indentación para que
+      #    merge_config.sh de linux-tkg lo parsee correctamente.
+      # ─────────────────────────────────────────────
+      - name: Enforce critical configs
+        run: |
+          mkdir -p ${{ github.workspace }}/linux-tkg/linux66-tkg-userpatches
+          FRAG="${{ github.workspace }}/linux-tkg/linux66-tkg-userpatches/config-fragment.cfg"
+
+          printf '%s\n' \
+            '# Video / pantalla gris fix' \
+            'CONFIG_FB=y' \
+            'CONFIG_VT=y' \
+            'CONFIG_VT_CONSOLE=y' \
+            'CONFIG_FRAMEBUFFER_CONSOLE=y' \
+            'CONFIG_DRM_FBDEV_EMULATION=y' \
+            'CONFIG_FB_EFI=y' \
+            'CONFIG_FONT_8x16=y' \
+            'CONFIG_FONT_SUPPORT=y' \
+            '# WiFi RTL8723BE - ambos drivers' \
+            'CONFIG_CFG80211=m' \
+            'CONFIG_MAC80211=m' \
+            'CONFIG_WLAN_VENDOR_REALTEK=y' \
+            'CONFIG_RTL8723BE=m' \
+            'CONFIG_RTL8723_COMMON=m' \
+            'CONFIG_RTLWIFI=m' \
+            'CONFIG_RTLWIFI_PCI=m' \
+            'CONFIG_RTW88=m' \
+            'CONFIG_RTW88_PCI=m' \
+            'CONFIG_RTW88_8723BE=m' \
+            '# Namespaces' \
+            'CONFIG_USER_NS=y' \
+            'CONFIG_NAMESPACES=y' \
+            'CONFIG_NET_NS=y' \
+            'CONFIG_PID_NS=y' \
+            '# ZRAM' \
+            'CONFIG_ZRAM=m' \
+            'CONFIG_ZSMALLOC=y' \
+            'CONFIG_ZRAM_DEF_COMP_LZ4=y' \
+            > "$FRAG"
+
+          echo "=== config-fragment.cfg generado ==="
+          cat "$FRAG"
+
+      # ─────────────────────────────────────────────
+      # 8. Prepare: descargar source y generar .config
+      #    Usamos makepkg --nobuild para que TKG ejecute
+      #    solo las fases fetch + prepare() sin compilar.
+      #    Esto genera el .config que verificamos a continuación.
+      # ─────────────────────────────────────────────
+      - name: Prepare kernel source and generate .config
+        run: |
+          cd ${{ github.workspace }}/linux-tkg
+
+          # makepkg --nobuild ejecuta: fetch de fuentes + prepare()
+          # prepare() es donde TKG aplica patches, modprobed.db
+          # y config-fragment.cfg — sin llegar a make
+          yes "" | makepkg --nobuild --noconfirm --skippgpcheck 2>&1 || true
+
+          # Verificar que el .config fue generado
+          CONFIG=$(find src -name ".config" 2>/dev/null | head -1)
+          if [ -z "$CONFIG" ]; then
+            echo "❌ ERROR: makepkg --nobuild no generó el .config"
+            echo "Contenido de src/:"
+            ls -la src/ 2>/dev/null || echo "src/ no existe"
+            exit 1
+          fi
+          echo "✅ .config generado en: $CONFIG"
+        env:
+          MAKEFLAGS: "-j$(nproc)"
+
+      # ─────────────────────────────────────────────
+      # 9. Verificar módulos del modprobed.db en el .config
+      #    ANTES de compilar — falla rápido si falta algo.
+      # ─────────────────────────────────────────────
+      - name: Verify modprobed.db modules in .config
+        run: |
+          CONFIG=$(find ${{ github.workspace }}/linux-tkg/src -name ".config" 2>/dev/null | head -1)
+
+          if [ -z "$CONFIG" ]; then
+            echo "❌ ERROR: No se encontró .config"
+            exit 1
+          fi
+
+          echo "✅ .config: $CONFIG"
+          echo ""
+
+          MODPROBED="/home/runner/modprobed.db"
+          MISSING=()
+
+          while IFS= read -r mod; do
+            [[ -z "$mod" ]] && continue
+            config_name="CONFIG_$(echo "$mod" | tr '[:lower:]-' '[:upper:]_')"
+            if ! grep -qE "^${config_name}=[ym]" "$CONFIG"; then
+              MISSING+=("$mod  →  $config_name")
+            fi
+          done < "$MODPROBED"
+
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo "⚠️  MÓDULOS FALTANTES EN .config (${#MISSING[@]} total):"
+            echo "──────────────────────────────────────────"
+            for m in "${MISSING[@]}"; do
+              echo "   ✗ $m"
+            done
+            echo "──────────────────────────────────────────"
+            echo "❌ Abortando — corregí el modprobed.db o customization.cfg antes de recompilar"
+            exit 1
+          fi
+
+          echo "✅ Todos los módulos del modprobed.db están presentes en .config"
+          echo "🚀 Procediendo a compilar..."
+
+      # ─────────────────────────────────────────────
+      # 10. Cache de objetos de compilación (ccache)
+      #     Reduce drásticamente el tiempo en recompilaciones.
+      #     En la primera run no hay cache — tarda lo mismo.
+      #     En runs siguientes puede bajar de 60 min a 10-15 min.
+      # ─────────────────────────────────────────────
+      - name: Cache ccache objects
+        uses: actions/cache@v4
+        with:
+          path: /root/.ccache
+          key: ccache-kernel-6.6-${{ hashFiles('myrepo/customization.cfg') }}-${{ github.sha }}
+          restore-keys: |
+            ccache-kernel-6.6-${{ hashFiles('myrepo/customization.cfg') }}-
+            ccache-kernel-6.6-
+
+      - name: Install and configure ccache
+        run: |
+          pacman -S --noconfirm --needed ccache
+          ccache --max-size=5G
+          ccache --zero-stats
+          # Agregar ccache al PATH para que make lo use automáticamente
+          echo "PATH=/usr/lib/ccache/bin:$PATH" >> $GITHUB_ENV
+          echo "CCACHE_DIR=/root/.ccache" >> $GITHUB_ENV
+
+      # ─────────────────────────────────────────────
+      # 11. Compilación
+      #     makepkg --noextract reutiliza el source ya preparado
+      #     en el paso anterior, sin re-descargar ni re-patchear.
+      # ─────────────────────────────────────────────
+      - name: Compile Kernel
+        run: |
+          cd ${{ github.workspace }}/linux-tkg
+          ls -la
+          chmod +x non-interactive-build.sh
+
+          # --noextract: reutiliza src/ del paso prepare anterior
+          yes "" | makepkg --noextract --noconfirm --skippgpcheck
+        env:
+          MAKEFLAGS: "-j$(nproc)"
+          CCACHE_DIR: /root/.ccache
+
+      - name: Show ccache stats
+        if: always()
+        run: ccache --show-stats
+
+      # ─────────────────────────────────────────────
+      # 12. Buscar paquetes generados (siempre, para debug)
+      # ─────────────────────────────────────────────
+      - name: Find packages
+        if: always()
+        run: |
+          echo "=== Buscando .pkg.tar.zst ==="
+          find ${{ github.workspace }}/linux-tkg -name "*.pkg.tar.zst" 2>/dev/null
+          echo "=== Contenido de non-interactive-build-output ==="
+          ls -la ${{ github.workspace }}/linux-tkg/non-interactive-build-output/ 2>/dev/null \
+            || echo "Directorio no encontrado"
+
+      # ─────────────────────────────────────────────
+      # 13. Crear Release
+      # ─────────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: "Linux-TKG 6.6 LTS — ${{ steps.tag.outputs.tag }}"
+          body: |
+            ## 🐧 Linux-TKG 6.6 LTS — Compilado para Intel Celeron N2807 (Bay Trail)
+
+            ### 🖥️ Hardware Target
+            | Campo | Valor |
+            |---|---|
+            | CPU | Intel Celeron N2807 @ 2.17 GHz (Silvermont) |
+            | GPU | Intel Atom Z36xxx/Z37xxx (i915) |
+            | RAM | 3.72 GiB |
+            | WiFi | Realtek RTL8723BE |
+            | OS | EndeavourOS / Arch-based |
+
+            ### ⚙️ Configuración del Kernel
+            | Flag | Valor |
+            |---|---|
+            | Versión | 6.6-latest (LTS) |
+            | Arquitectura | `silvermont` |
+            | Scheduler | `bore` |
+            | Timer | 1000 Hz |
+            | CPU Governor | `performance` |
+            | Mitigaciones | deshabilitadas |
+            | modprobed.db | ✅ activado |
+            | Debug symbols | ❌ deshabilitado |
+            | Strip | ✅ activado |
+
+            ### 📦 Módulos clave incluidos
+            - **Video:** `i915`, `drm`, `ttm`, framebuffer console, EFI framebuffer
+            - **WiFi:** `rtl8723be`, `rtlwifi`, `rtw88_8723be` (legacy + moderno)
+            - **Audio:** `snd_hda_intel` + codec Realtek
+            - **Storage:** `ahci`, `sd_mod`, `ext4`, `f2fs`, `ntfs3`
+            - **USB 3.0:** `xhci_hcd`, `xhci_pci`
+            - **Bluetooth:** `btusb`, `btintel`
+            - **ZRAM:** `zram` + `lz4`
+            - **Térmica:** `processor_thermal_*`, `intel_soc_dts_*`
+
+            ### 📥 Instalación
+            ```bash
+            # Descargar los .pkg.tar.zst del release y ejecutar:
+            sudo pacman -U linux-tkg-*.pkg.tar.zst linux-tkg-headers-*.pkg.tar.zst
+
+            # Actualizar bootloader (GRUB):
+            sudo grub-mkconfig -o /boot/grub/grub.cfg
+            ```
+
+            > ⚠️ **Nota:** Este kernel está optimizado específicamente para el N2807.
+            > Las mitigaciones de CPU están deshabilitadas para maximizar rendimiento.
+            > No instalar en hardware diferente sin recompilar.
+          files: ${{ github.workspace }}/linux-tkg/non-interactive-build-output/*.pkg.tar.zst
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
