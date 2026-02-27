@@ -20,7 +20,7 @@ jobs:
       # ─────────────────────────────────────────────
       # 0. Generar tag dinámico (fecha + short SHA)
       # ─────────────────────────────────────────────
-      - name: Generate release tag
+      - name: "01 - Generate release tag"
         id: tag
         run: |
           TAG="v6.6-$(date +'%Y%m%d')-$(echo ${{ github.sha }} | cut -c1-7)"
@@ -30,7 +30,7 @@ jobs:
       # ─────────────────────────────────────────────
       # 1. Checkout del repo propio
       # ─────────────────────────────────────────────
-      - name: Checkout lauta-dev/linux-tkg
+      - name: "02 - Checkout lauta-dev/linux-tkg"
         uses: actions/checkout@v4
         with:
           repository: 'lauta-dev/linux-tkg'
@@ -40,7 +40,7 @@ jobs:
       # ─────────────────────────────────────────────
       # 2. Debug: mostrar paths reales del container
       # ─────────────────────────────────────────────
-      - name: Debug paths
+      - name: "03 - Debug paths"
         run: |
           echo "github.workspace = ${{ github.workspace }}"
           echo "PWD = $(pwd)"
@@ -55,7 +55,7 @@ jobs:
       # ─────────────────────────────────────────────
       # 3. Cache de paquetes de pacman
       # ─────────────────────────────────────────────
-      - name: Cache pacman packages
+      - name: "04 - Cache pacman packages"
         uses: actions/cache@v4
         with:
           path: /var/cache/pacman/pkg
@@ -66,7 +66,7 @@ jobs:
       # ─────────────────────────────────────────────
       # 4. Dependencias del sistema (ccache incluido)
       # ─────────────────────────────────────────────
-      - name: Install System Tools
+      - name: "05 - Install System Tools"
         run: |
           pacman-key --init
           pacman-key --populate archlinux
@@ -74,12 +74,15 @@ jobs:
             git base-devel sudo \
             xmlto kmod inetutils bc libelf \
             python pahole cpio perl tar xz zstd \
-            ccache
+            ccache wget \
+            docbook-xsl patchutils \
+            python-sphinx python-sphinx_rtd_theme \
+            graphviz imagemagick
 
       # ─────────────────────────────────────────────
       # 5. Checkout de Frogging-Family/linux-tkg
       # ─────────────────────────────────────────────
-      - name: Checkout Frogging-Family/linux-tkg
+      - name: "06 - Checkout Frogging-Family/linux-tkg"
         uses: actions/checkout@v4
         with:
           repository: 'Frogging-Family/linux-tkg'
@@ -88,7 +91,7 @@ jobs:
       # ─────────────────────────────────────────────
       # 6. Cache del tarball del kernel 6.6
       # ─────────────────────────────────────────────
-      - name: Cache kernel source tarball
+      - name: "07 - Cache kernel source tarball"
         uses: actions/cache@v4
         with:
           path: linux-tkg/src
@@ -101,7 +104,7 @@ jobs:
       #    Usamos paths relativos desde PWD para evitar
       #    problemas con github.workspace en containers.
       # ─────────────────────────────────────────────
-      - name: Setup modprobed.db and config
+      - name: "08 - Setup modprobed.db and config"
         run: |
           # Copiar a /home/runner/ (ruta hardcodeada en customization.cfg)
           mkdir -p /home/runner/
@@ -117,7 +120,7 @@ jobs:
       # ─────────────────────────────────────────────
       # 8. Enforce critical configs
       # ─────────────────────────────────────────────
-      - name: Enforce critical configs
+      - name: "09 - Enforce critical configs"
         run: |
           mkdir -p linux-tkg/linux66-tkg-userpatches
           FRAG="linux-tkg/linux66-tkg-userpatches/config-fragment.cfg"
@@ -160,7 +163,7 @@ jobs:
       # ─────────────────────────────────────────────
       # 9. Cache ccache
       # ─────────────────────────────────────────────
-      - name: Cache ccache objects
+      - name: "10 - Cache ccache objects"
         uses: actions/cache@v4
         with:
           path: /root/.ccache
@@ -169,7 +172,7 @@ jobs:
             ccache-kernel-6.6-${{ hashFiles('myrepo/customization.cfg') }}-
             ccache-kernel-6.6-
 
-      - name: Configure ccache
+      - name: "11 - Configure ccache"
         run: |
           ccache --max-size=5G
           ccache --zero-stats
@@ -179,7 +182,7 @@ jobs:
       # ─────────────────────────────────────────────
       # 10. Crear builduser (makepkg no puede correr como root)
       # ─────────────────────────────────────────────
-      - name: Create build user
+      - name: "12 - Create build user"
         run: |
           useradd -m builduser
           echo "builduser ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builduser
@@ -201,7 +204,7 @@ jobs:
       # ─────────────────────────────────────────────
       # 11. Prepare: fetch + generate .config (sin compilar)
       # ─────────────────────────────────────────────
-      - name: Prepare kernel source and generate .config
+      - name: "13 - Prepare kernel source and generate .config"
         run: |
           sudo -u builduser bash -c "
             cd /__w/linux-tkg/linux-tkg/linux-tkg
@@ -223,7 +226,7 @@ jobs:
       # ─────────────────────────────────────────────
       # 11. Verificar módulos ANTES de compilar
       # ─────────────────────────────────────────────
-      - name: Verify modprobed.db modules in .config
+      - name: "14 - Verify modprobed.db modules in .config"
         run: |
           CONFIG=$(find linux-tkg/src -name ".config" 2>/dev/null | head -1)
 
@@ -261,7 +264,7 @@ jobs:
       # ─────────────────────────────────────────────
       # 13. Compilación
       # ─────────────────────────────────────────────
-      - name: Compile Kernel
+      - name: "15 - Compile Kernel"
         run: |
           sudo -u builduser bash -c "
             export MAKEFLAGS='-j\$(nproc)'
@@ -270,14 +273,14 @@ jobs:
             yes '' | makepkg --noextract --noconfirm --skippgpcheck
           "
 
-      - name: Show ccache stats
+      - name: "16 - Show ccache stats"
         if: always()
         run: ccache --show-stats
 
       # ─────────────────────────────────────────────
       # 13. Buscar paquetes (siempre, para debug)
       # ─────────────────────────────────────────────
-      - name: Find packages
+      - name: "17 - Find packages"
         if: always()
         run: |
           echo "=== Buscando .pkg.tar.zst ==="
@@ -289,7 +292,7 @@ jobs:
       # ─────────────────────────────────────────────
       # 14. Crear Release
       # ─────────────────────────────────────────────
-      - name: Create GitHub Release
+      - name: "18 - Create GitHub Release"
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
