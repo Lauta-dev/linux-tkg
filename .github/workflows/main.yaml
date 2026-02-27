@@ -1,10 +1,10 @@
-name: linux-5.10-tkg-silvermont
+name: linux-5.15-tkg-silvermont
 
 on:
   push:
     branches: 
       - main
-      - 5-10
+      - 5-15
   workflow_dispatch:
 
 jobs:
@@ -21,10 +21,10 @@ jobs:
             linux-tkg/linux-kernel.git
             linux-tkg/linux-src-git
             .ccache
-          # Cambiamos la clave a 5.10 para resetear el cache
-          key: linux-5.10-silvermont-${{ runner.os }}-${{ github.sha }}-v3-bore
+          # Cambiamos la clave a 5.15 para resetear el cache
+          key: linux-5.15-silvermont-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
-            linux-5.10-silvermont-${{ runner.os }}-
+            linux-5.15-silvermont-${{ runner.os }}-
 
       - name: 3. Preparar Base de Datos (Fake LSMOD)
         run: |
@@ -53,7 +53,7 @@ jobs:
           mkdir -p output/boot
           
           # Cambiamos el nombre del vmlinuz para diferenciarlo del 6.6
-          cp linux-tkg/linux-src-git/arch/x86/boot/bzImage output/boot/vmlinuz-linux510-tkg-silvermont
+          cp linux-tkg/linux-src-git/arch/x86/boot/bzImage output/boot/vmlinuz-linux515-tkg-silvermont
           
           cd linux-tkg/linux-src-git
           sudo make INSTALL_MOD_PATH=../../output modules_install
@@ -61,12 +61,12 @@ jobs:
           cd ../../output
           sudo rm -f lib/modules/*/build lib/modules/*/source
           # Nombre del comprimido actualizado
-          sudo tar -cvzf ../kernel-510-silvermont.tar.gz .
+          sudo tar -cvzf ../kernel-515-silvermont.tar.gz .
           
-          sudo chown $USER:$USER ../kernel-510-silvermont.tar.gz
+          sudo chown $USER:$USER ../kernel-515-silvermont.tar.gz
 
       - name: 7. Subir Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-tkg-5.10-silvermont
-          path: kernel-510-silvermont.tar.gz
+          name: kernel-tkg-5.15-silvermont
+          path: kernel-515-silvermont.tar.gz
