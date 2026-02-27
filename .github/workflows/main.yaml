@@ -38,25 +38,26 @@ jobs:
           make x86_64_defconfig
           LSMOD=$GITHUB_WORKSPACE/modprobed.db make localmodconfig
           
-          # --- FORZAR VIDEO INTEL (BUILT-IN) ---
-          scripts/config --enable CONFIG_DRM_I915
-          scripts/config --enable CONFIG_DRM_I915_GVT
-          scripts/config --enable CONFIG_FB_EFI
+          # --- FIX PANTALLA GRIS (Basado en lo que faltaba en tu .config) ---
+          scripts/config --enable CONFIG_VT
+          scripts/config --enable CONFIG_VT_CONSOLE
           scripts/config --enable CONFIG_FRAMEBUFFER_CONSOLE
+          scripts/config --enable CONFIG_FB_EFI
+          scripts/config --enable CONFIG_DRM_I915
           scripts/config --enable CONFIG_DRM_FBDEV_EMULATION
           
-          # --- FORZAR DISCO Y TECLADO (EVITAR KERNEL PANIC) ---
-          scripts/config --enable CONFIG_EXT4_FS
-          scripts/config --enable CONFIG_INPUT_KEYBOARD
-          scripts/config --enable CONFIG_HID_GENERIC
-          
-          # --- OPTIMIZACIÓN SILVERMONT ---
+          # --- OPTIMIZACIÓN SILVERMONT N2807 ---
           scripts/config --enable CONFIG_MATOM
           scripts/config --enable CONFIG_PREEMPT
           scripts/config --disable CONFIG_DEBUG_INFO
+          scripts/config --disable CONFIG_X86_5LEVEL
+          
+          # --- COMPRESIÓN LZ4 (Para Dracut y Kernel) ---
           scripts/config --disable CONFIG_KERNEL_GZIP
-          scripts/config --disable CONFIG_KERNEL_ZSTD
           scripts/config --enable CONFIG_KERNEL_LZ4
+          
+          # Asegurar que el sistema de archivos no sea módulo
+          scripts/config --enable CONFIG_EXT4_FS
           
           make olddefconfig
 
