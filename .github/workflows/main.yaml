@@ -1,85 +1,86 @@
-name: xanmod-5.15-silvermont-slim
+name: xanmod-5.15-release-final
 
 on:
   push:
-    branches: [ 5-15-xm ]
+    branches: [ main ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: 1. Checkout del repositorio
+      - name: 1. Checkout
         uses: actions/checkout@v4
 
-      - name: 2. Instalar dependencias
+      - name: 2. Preparar Entorno y Ccache
         run: |
           sudo apt-get update
-          sudo apt-get install -y git build-essential bc bison flex libelf-dev libssl-dev make ccache dwarves libncurses-dev xz-utils kmod
+          sudo apt-get install -y git build-essential bc bison flex libelf-dev libssl-dev make ccache dwarves libncurses-dev xz-utils kmod lz4
+          # Forzamos la creación del directorio para que el Cache no de error
+          mkdir -p ~/.ccache
+          echo "max_size = 2.0G" > ~/.ccache/ccache.conf
 
-      - name: 3. Configurar Ccache
+      - name: 3. Configurar GitHub Cache
         uses: actions/cache@v4
         with:
           path: ~/.ccache
           key: ccache-xanmod-515-${{ github.sha }}
           restore-keys: ccache-xanmod-515-
 
-      - name: 4. Clonar XanMod 5.15 (Instrucción de usuario)
-        run: |
-          git clone --depth 1 --branch 5.15 https://github.com/xanmod/linux xanmod
+      - name: 4. Clonar XanMod 5.15
+        run: git clone --depth 1 --branch 5.15 https://github.com/xanmod/linux xanmod
 
       - name: 5. Aplicar Modprobed-db y Optimización
         run: |
           cd xanmod
-          # Usamos la config base de XanMod
           make x86_64_defconfig
+          # Usamos la ruta absoluta para evitar errores de validación
+          LSMOD=$GITHUB_WORKSPACE/modprobed.db make localmodconfig
           
-          # Inyectamos tu modprobed.db para dejarlo "slim"
-          # El archivo debe estar en la raíz de tu repo
-          LSMOD=../modprobed.db make localmodconfig
-          
-          # Forzamos optimización para tu Celeron Silvermont
           scripts/config --enable CONFIG_MATOM
-
-          # Quitamos basura de debug para reducir peso
-          scripts/config --disable CONFIG_DEBUG_INFO
-          scripts/config --disable CONFIG_DEBUG_KERNEL
-          # Aseguramos Preempt Full para respuesta rápida en juegos
           scripts/config --enable CONFIG_PREEMPT
-
-          # Desactivar compresión por defecto (ZSTD/GZIP)
+          scripts/config --disable CONFIG_DEBUG_INFO
           scripts/config --disable CONFIG_KERNEL_GZIP
           scripts/config --disable CONFIG_KERNEL_ZSTD
-          
-          # Activar LZ4
           scripts/config --enable CONFIG_KERNEL_LZ4
-
-          # Sincronizamos la config
           make olddefconfig
 
-      - name: 6. Compilar (Usando Ccache)
+      - name: 6. Compilar
         run: |
           cd xanmod
+          export CCACHE_DIR=~/.ccache
           export PATH="/usr/lib/ccache:$PATH"
           make -j$(nproc) bzImage modules
 
-      - name: 7. Empaquetado para Dracut/Systemd-boot
+      - name: 7. Empaquetado
         run: |
           mkdir -p output/boot
-          # Nombre claro para tu entrada de systemd-boot
-          cp xanmod/arch/x86/boot/bzImage output/boot/vmlinuz-515-xanmod-silvermont
-          
+          cp xanmod/arch/x86/boot/bzImage output/boot/vmlinuz-515-xanmod-lz4
           cd xanmod
           sudo make INSTALL_MOD_PATH=../output modules_install
-          
           cd ../output
-          # Limpiamos enlaces simbólicos rotos antes de comprimir
           sudo rm -f lib/modules/*/build lib/modules/*/source
-          sudo tar -cvzf ../kernel-515-xanmod-slim.tar.gz .
-          sudo chown $USER:$USER ../kernel-515-xanmod-slim.tar.gz
+          tar -cvzf ../kernel-515-slim.tar.gz .
 
-      - name: 8. Subir Kernel resultante
-        uses: actions/upload-artifact@v4
+      - name: 8. Crear Release y subir README
+        uses: softprops/action-gh-release@v1
         with:
-          name: kernel-5.15-xanmod-slim
-          path: kernel-515-xanmod-slim.tar.gz
+          tag_name: v5.15-slim-${{ github.run_number }}
+          name: XanMod 5.15 Slim (Silvermont N2807)
+          body: |
+            ### 💻 Build Specs
+            ```text
+            Arquitectura:                        x86_64
+            Nombre del modelo:                   Intel(R) Celeron(R) CPU N2807 @ 1.58GHz
+            CPU MHz máx.:                        2165,8000
+            Caché L2:                            1 MiB (1 instancia)
+            ```
+            ### 🛠️ Optimizaciones
+            - **Compresión:** LZ4
+            - **Micro-Arquitectura:** Silvermont (MATOM)
+            - **Preemption:** Full (Real-time feel)
+            - **Modprobed-db:** Aplicado con éxito.
+          files: kernel-515-slim.tar.gz
