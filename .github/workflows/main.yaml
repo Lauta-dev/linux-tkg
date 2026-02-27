@@ -37,15 +37,18 @@ jobs:
           cd xanmod
           # 1. Base del sistema
           make x86_64_defconfig
+          
+          # 2. Inyectar soporte básico ANTES de optimizar (para que localmodconfig no los borre)
+          KCONFIG="./scripts/config"
+          $KCONFIG --enable CONFIG_WLAN
+          $KCONFIG --enable CONFIG_PCI
           LSMOD=$GITHUB_WORKSPACE/modprobed.db make localmodconfig
           
           KCONFIG="./scripts/config"
 
           # --- PRIORIDAD 1: RED (Las llaves maestras primero) ---
           $KCONFIG --enable CONFIG_NETDEVICES
-          $KCONFIG --enable CONFIG_WLAN
           $KCONFIG --enable CONFIG_RFKILL
-          $KCONFIG --enable CONFIG_PCI
           $KCONFIG --enable CONFIG_CFG80211
           $KCONFIG --enable CONFIG_MAC80211
           $KCONFIG --enable CONFIG_RTW88
