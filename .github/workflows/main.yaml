@@ -1,4 +1,4 @@
-name: linux-6.6-tkg-silvermont
+name: linux-5.10-tkg-silvermont
 
 on:
   push:
@@ -16,17 +16,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            # Cacheamos el clon de git para evitar el fetch completo
             linux-tkg/linux-kernel.git
-            # Cacheamos la carpeta de trabajo
             linux-tkg/linux-src-git
-            # Cacheamos los binarios de ccache
             .ccache
-          # La clave incluye la versión para no mezclar kernels diferentes
-          key: linux-6.6-silvermont-${{ runner.os }}-${{ github.sha }}
-          # restore-keys permite recuperar el cache de la ejecución anterior
+          # Cambiamos la clave a 5.10 para resetear el cache
+          key: linux-5.10-silvermont-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
-            linux-6.6-silvermont-${{ runner.os }}-
+            linux-5.10-silvermont-${{ runner.os }}-
 
       - name: 3. Preparar Base de Datos (Fake LSMOD)
         run: |
@@ -39,7 +35,6 @@ jobs:
 
       - name: 5. Ejecutar Linux-TKG
         run: |
-          # Clonamos solo si no existe (por el cache)
           if [ ! -d "linux-tkg" ]; then
             git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
           fi
@@ -47,32 +42,29 @@ jobs:
           cp customization.cfg linux-tkg/customization.cfg
           
           cd linux-tkg
-          # IMPORTANTE: El script detectará automáticamente las carpetas linux-kernel.git
-          # y linux-src-git si ya existen gracias al cache.
+          # Forzamos PATH para ccache
+          export PATH="/usr/lib/ccache:$PATH"
           yes "" | ./install.sh install
 
-      - name: 5. Empaquetado de Binarios
+      - name: 6. Empaquetado de Binarios
         run: |
-          # Creamos la carpeta de salida
           mkdir -p output/boot
           
-          # 1. Copiar el Kernel (el binario ejecutable)
-          cp linux-tkg/linux-src-git/arch/x86/boot/bzImage output/boot/vmlinuz-linux66-tkg-silvermont
+          # Cambiamos el nombre del vmlinuz para diferenciarlo del 6.6
+          cp linux-tkg/linux-src-git/arch/x86/boot/bzImage output/boot/vmlinuz-linux510-tkg-silvermont
           
-          # 2. Instalar los Módulos en la carpeta output
           cd linux-tkg/linux-src-git
           sudo make INSTALL_MOD_PATH=../../output modules_install
           
-          # 3. Limpiar y Comprimir (usando sudo para evitar errores de permisos)
           cd ../../output
           sudo rm -f lib/modules/*/build lib/modules/*/source
-          sudo tar -cvzf ../kernel-66-silvermont.tar.gz .
+          # Nombre del comprimido actualizado
+          sudo tar -cvzf ../kernel-510-silvermont.tar.gz .
           
-          # 4. Cambiar el dueño del archivo final para que el Action pueda subirlo
-          sudo chown $USER:$USER ../kernel-66-silvermont.tar.gz
+          sudo chown $USER:$USER ../kernel-510-silvermont.tar.gz
 
       - name: 7. Subir Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-tkg-6.6-silvermont
-          path: kernel-66-silvermont.tar.gz
+          name: kernel-tkg-5.10-silvermont
+          path: kernel-510-silvermont.tar.gz
