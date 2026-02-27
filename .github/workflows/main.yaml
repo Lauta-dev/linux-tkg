@@ -2,7 +2,7 @@ name: xanmod-5.15-release-final
 
 on:
   push:
-    branches: [ main ]
+    branches: [ 5-15-xm ]
   workflow_dispatch:
 
 permissions:
