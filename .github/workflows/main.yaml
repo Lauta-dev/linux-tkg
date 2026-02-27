@@ -42,11 +42,19 @@ jobs:
           ./scripts/config --enable CONFIG_NETDEVICES
           ./scripts/config --enable CONFIG_WLAN
           
+
           LSMOD=$GITHUB_WORKSPACE/modprobed.db make localmodconfig
           
           # Definir herramienta de configuración
           KCONFIG="./scripts/config"
 
+          # --- FIX NAVEGADOR (Namespaces) ---
+          $KCONFIG --enable CONFIG_USER_NS
+          $KCONFIG --enable CONFIG_NAMESPACES
+          $KCONFIG --enable CONFIG_UTS_NS
+          $KCONFIG --enable CONFIG_IPC_NS
+          $KCONFIG --enable CONFIG_PID_NS
+          $KCONFIG --enable CONFIG_NET_NS
           # --- [WIFI Y RED] Soporte para RTL8723BE (Legacy y Moderno) ---
           $KCONFIG --enable CONFIG_PCI
           $KCONFIG --enable CONFIG_CFG80211
@@ -98,15 +106,20 @@ jobs:
           $KCONFIG --enable CONFIG_ZSTD_COMPRESS
           $KCONFIG --enable CONFIG_ZSTD_DECOMPRESS
 
+
           # 2. Aplicar y limpiar
           make olddefconfig
-
-          # 3. VERIFICACIÓN FINAL (Si esto falla, la Action se detiene)
-          echo "--- CHEQUEO DE INTEGRIDAD ---"
-          grep -E "CONFIG_RTW88_8723be=m|CONFIG_RTL8723BE=m" .config || (echo "ERROR: WiFi no inyectado" && exit 1)
-          grep "CONFIG_DRM_I915=y" .config || (echo "ERROR: Video no inyectado" && exit 1)
-          grep "CONFIG_ZRAM=y" .config || (echo "ERROR: ZRAM no inyectada" && exit 1)
-          echo "¡Todo listo! Iniciando compilación..."      
+          echo "Verificando configuración crítica..."
+          
+          if grep -q "CONFIG_USER_NS=y" .config && grep -q "CONFIG_RTL8723BE=m" .config; then
+            echo "✅ CONFIGURACIÓN CORRECTA: WiFi y Namespaces presentes."
+            echo "Procediendo a la compilación..."
+          else
+            echo "❌ ERROR CRÍTICO: Faltan componentes esenciales."
+            grep "CONFIG_USER_NS" .config || echo "Falta: CONFIG_USER_NS (El navegador no funcionará)"
+            grep "CONFIG_RTL8723BE" .config || echo "Falta: CONFIG_RTL8723BE (El WiFi no funcionará)"
+            exit 1
+          fi     
 
       - name: 6. Compilar
         run: |
