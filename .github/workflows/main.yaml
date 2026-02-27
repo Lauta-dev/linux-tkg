@@ -76,12 +76,18 @@ jobs:
           $KCONFIG --enable CONFIG_ZRAM_DEF_COMP_LZ4
           $KCONFIG --enable CONFIG_SCHED_AUTOGROUP
           
-          # --- WIFI Y ETHERNET (Tus placas 10ec:b723 y 10ec:8136) ---
-          $KCONFIG --enable CONFIG_WLAN
-          $KCONFIG --enable CONFIG_RTW88
-          $KCONFIG --module CONFIG_RTW88_8723be
-          $KCONFIG --enable CONFIG_R8169
-          $KCONFIG --enable CONFIG_REALTEK_PHY
+          # 1. Habilitar el soporte inalámbrico base (Indispensable)
+          ./scripts/config --enable CONFIG_NETDEVICES
+          ./scripts/config --enable CONFIG_WLAN
+          ./scripts/config --enable CONFIG_RFKILL
+
+          # 2. Habilitar el soporte de Realtek moderno (Jerarquía)
+          ./scripts/config --enable CONFIG_RTW88
+          ./scripts/config --module CONFIG_RTW88_8723be
+
+          # 3. Soporte de Bus (Para que el kernel vea la placa PCI)
+          ./scripts/config --enable CONFIG_PCI
+          ./scripts/config --enable CONFIG_MAC80211
           
           # FIX DRACUT ERROR (ZSTD)
           $KCONFIG --enable CONFIG_ZSTD_COMPRESS
