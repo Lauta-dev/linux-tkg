@@ -226,6 +226,7 @@ jobs:
           find /__w -name "*.pkg.tar.zst" 2>/dev/null || echo "ninguno"
 
       - name: "13 - Prepare kernel source and generate .config"
+        if: false  # Deshabilitado — makepkg corre completo en step 15
         run: |
           sudo -u builduser bash -c "
             cd /__w/linux-tkg/linux-tkg/linux-tkg
@@ -385,14 +386,13 @@ jobs:
       # ─────────────────────────────────────────────
       - name: "15 - Compile Kernel"
         run: |
-          # Evaluar nproc antes del sudo para que no quede vacío
           JOBS=$(nproc)
           echo "Compilando con $JOBS cores"
           sudo -u builduser bash -c "
-            export MAKEFLAGS='-j${JOBS}'
+            export MAKEFLAGS="-j${JOBS}"
             export CCACHE_DIR=/root/.ccache
             cd /__w/linux-tkg/linux-tkg/linux-tkg
-            yes '' | makepkg --noextract --noconfirm --skippgpcheck
+            yes '' | makepkg --noconfirm --skippgpcheck
           " JOBS="$JOBS"
 
       - name: "16 - Show ccache stats"
