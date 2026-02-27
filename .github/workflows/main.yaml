@@ -40,11 +40,20 @@ jobs:
           
           # Forzamos optimización para tu Celeron Silvermont
           scripts/config --enable CONFIG_MATOM
+
           # Quitamos basura de debug para reducir peso
           scripts/config --disable CONFIG_DEBUG_INFO
           scripts/config --disable CONFIG_DEBUG_KERNEL
           # Aseguramos Preempt Full para respuesta rápida en juegos
           scripts/config --enable CONFIG_PREEMPT
+
+          # Desactivar compresión por defecto (ZSTD/GZIP)
+          scripts/config --disable CONFIG_KERNEL_GZIP
+          scripts/config --disable CONFIG_KERNEL_ZSTD
+          
+          # Activar LZ4
+          scripts/config --enable CONFIG_KERNEL_LZ4
+
           # Sincronizamos la config
           make olddefconfig
 
