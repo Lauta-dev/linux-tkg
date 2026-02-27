@@ -22,7 +22,7 @@ jobs:
             linux-tkg/linux-src-git
             .ccache
           # Cambiamos la clave a 5.10 para resetear el cache
-          key: linux-5.10-silvermont-${{ runner.os }}-${{ github.sha }}
+          key: linux-5.10-silvermont-${{ runner.os }}-${{ github.sha }}-v2-bmq
           restore-keys: |
             linux-5.10-silvermont-${{ runner.os }}-
 
