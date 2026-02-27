@@ -103,11 +103,16 @@ jobs:
       # ─────────────────────────────────────────────
       - name: Setup modprobed.db and config
         run: |
+          # Copiar a /home/runner/ (ruta hardcodeada en customization.cfg)
           mkdir -p /home/runner/
           cp myrepo/modprobed.db /home/runner/modprobed.db
+          # Copiar también a $HOME por si TKG lo busca ahí
+          mkdir -p $HOME/.config/
+          cp myrepo/modprobed.db $HOME/.config/modprobed.db
           cp myrepo/customization.cfg linux-tkg/customization.cfg
-          echo "✅ modprobed.db copiado a /home/runner/"
-          echo "✅ customization.cfg copiado a linux-tkg/"
+          echo "✅ modprobed.db → /home/runner/modprobed.db"
+          echo "✅ modprobed.db → $HOME/.config/modprobed.db"
+          echo "✅ customization.cfg → linux-tkg/"
 
       # ─────────────────────────────────────────────
       # 8. Enforce critical configs
