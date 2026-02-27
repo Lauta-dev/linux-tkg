@@ -46,6 +46,8 @@ jobs:
           scripts/config --disable CONFIG_KERNEL_GZIP
           scripts/config --disable CONFIG_KERNEL_ZSTD
           scripts/config --enable CONFIG_KERNEL_LZ4
+          scripts/config --enable CONFIG_DRM_I915
+          
           make olddefconfig
 
       - name: 6. Compilar

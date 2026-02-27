@@ -45,11 +45,28 @@ Para exprimir el N2807 en juegos como NFS Most Wanted, el kernel incluye:
 2. Extrae en la raíz:
 ```Bash
 sudo tar -xzvf kernel-xanmod-515-slim.tar.gz -C /
-Genera el Initramfs con Dracut:
 ```
 
 3. Genera el Initramfs con Dracut:
 ```Bash
-sudo dracut --force --compress lz4 --kver 5.15.95-xanmod1
-Actualiza tu entrada de systemd-boot.
+sudo dracut --force --hostonly --compress lz4 --kver 5.15.95-xanmod1 /efi/initramfs-515-xanmod-silvermont.img
 ```
+
+4. Añade una nueva entrada
+```bash
+sudo nano /efi/loader/entries/xanmod-slim.conf
+```
+
+5. Pegar este contenido
+```file
+title   XanMod 5.15 Slim (Silvermont)
+linux   /vmlinuz-515-xanmod-silvermont
+initrd  /initramfs-515-xanmod-silvermont.img
+options root=UUID=xxx rw intel_pstate=passive quiet loglevel=3 mitigations=off
+```
+
+>[!info]
+> el UUID=xxx se consigue con:
+>```bash
+>lsblk -no UUID $(df / | tail -n1 | cut -d' ' -f1)
+>```
