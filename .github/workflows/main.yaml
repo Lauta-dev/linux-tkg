@@ -69,6 +69,39 @@ jobs:
           $KCONFIG --enable CONFIG_MICROCODE
           $KCONFIG --enable CONFIG_MICROCODE_INTEL
           
+          # FIX RENDIMIENTO
+          $KCONFIG --enable CONFIG_ZRAM
+          $KCONFIG --enable CONFIG_ZSMALLOC
+          $KCONFIG --enable CONFIG_CRYPTO_LZ4
+          $KCONFIG --enable CONFIG_ZRAM_DEF_COMP_LZ4
+          $KCONFIG --enable CONFIG_SCHED_AUTOGROUP
+          
+          # --- WIFI Y ETHERNET (Tus placas 10ec:b723 y 10ec:8136) ---
+          $KCONFIG --enable CONFIG_WLAN
+          $KCONFIG --enable CONFIG_RTW88
+          $KCONFIG --module CONFIG_RTW88_8723be
+          $KCONFIG --enable CONFIG_R8169
+          $KCONFIG --enable CONFIG_REALTEK_PHY
+          
+          # FIX DRACUT ERROR (ZSTD)
+          $KCONFIG --enable CONFIG_ZSTD_COMPRESS
+          $KCONFIG --enable CONFIG_ZSTD_DECOMPRESS
+
+          # --- RENDIMIENTO Y CPU SILVERMONT ---
+          $KCONFIG --enable CONFIG_X86_INTEL_PSTATE
+          $KCONFIG --enable CONFIG_INTEL_IDLE
+          $KCONFIG --enable CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE
+          $KCONFIG --enable CONFIG_SCHED_MC
+          $KCONFIG --set-val CONFIG_HZ 1000
+          $KCONFIG --enable CONFIG_HZ_1000
+
+          # --- FIX ZRAM (Para que no se trabe al bootear) ---
+          $KCONFIG --enable CONFIG_ZRAM
+          $KCONFIG --enable CONFIG_ZSMALLOC
+          $KCONFIG --enable CONFIG_CRYPTO_LZ4
+          $KCONFIG --enable CONFIG_ZRAM_DEF_COMP_LZ4
+
+
           # Aplicar y limpiar
           make olddefconfig
           
