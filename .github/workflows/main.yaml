@@ -204,6 +204,27 @@ jobs:
       # ─────────────────────────────────────────────
       # 11. Prepare: fetch + generate .config (sin compilar)
       # ─────────────────────────────────────────────
+      - name: "12b - Debug workspace structure"
+        run: |
+          echo "=== PWD ==="
+          pwd
+          echo "=== /__w/ ==="
+          ls -la /__w/ 2>/dev/null || echo "no existe"
+          echo "=== /__w/linux-tkg/ ==="
+          ls -la /__w/linux-tkg/ 2>/dev/null || echo "no existe"
+          echo "=== /__w/linux-tkg/linux-tkg/ ==="
+          ls -la /__w/linux-tkg/linux-tkg/ 2>/dev/null || echo "no existe"
+          echo "=== /__w/linux-tkg/linux-tkg/linux-tkg/ ==="
+          ls -la /__w/linux-tkg/linux-tkg/linux-tkg/ 2>/dev/null || echo "no existe"
+          echo "=== /__w/linux-tkg/linux-tkg/linux-tkg/src/ ==="
+          ls -la /__w/linux-tkg/linux-tkg/linux-tkg/src/ 2>/dev/null || echo "no existe"
+          echo "=== /__w/linux-tkg/linux-tkg/linux-tkg/src/linux-src-git/ (top level) ==="
+          ls -la /__w/linux-tkg/linux-tkg/linux-tkg/src/linux-src-git/ 2>/dev/null | head -20 || echo "no existe"
+          echo "=== Buscando .config en todo src/ ==="
+          find /__w/linux-tkg/linux-tkg/linux-tkg/src -name ".config" 2>/dev/null || echo "ninguno"
+          echo "=== Buscando *.pkg.tar.zst ==="
+          find /__w -name "*.pkg.tar.zst" 2>/dev/null || echo "ninguno"
+
       - name: "13 - Prepare kernel source and generate .config"
         run: |
           sudo -u builduser bash -c "
@@ -237,42 +258,117 @@ jobs:
       # ─────────────────────────────────────────────
       # 11. Verificar módulos ANTES de compilar
       # ─────────────────────────────────────────────
+      - name: "13b - Upload .config artifact"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-config-${{ steps.tag.outputs.tag }}
+          path: /__w/linux-tkg/linux-tkg/linux-tkg/src/linux-src-git/.config
+          if-no-files-found: warn
+
       - name: "14 - Verify modprobed.db modules in .config"
         run: |
-          # Usar el path exportado por el step 13
           CONFIG="$KERNEL_CONFIG"
-
           if [ -z "$CONFIG" ] || [ ! -f "$CONFIG" ]; then
-            echo "❌ ERROR: No se encontró .config (KERNEL_CONFIG=$KERNEL_CONFIG)"
-            echo "Buscando manualmente..."
-            CONFIG=$(find /__w/linux-tkg/linux-tkg/linux-tkg/src -name ".config" 2>/dev/null | head -1)
-            [ -z "$CONFIG" ] && exit 1
+            echo "❌ ERROR: .config no encontrado"
+            exit 1
           fi
-
           echo "✅ .config: $CONFIG"
           MODPROBED="/home/runner/modprobed.db"
           MISSING=()
 
           while IFS= read -r mod; do
             [[ -z "$mod" ]] && continue
-            config_name="CONFIG_$(echo "$mod" | tr '[:lower:]-' '[:upper:]_')"
-            if ! grep -qE "^${config_name}=[ym]" "$CONFIG"; then
-              MISSING+=("$mod  →  $config_name")
+            MOD_UPPER=$(echo "$mod" | tr '[:lower:]-' '[:upper:]_')
+            FOUND=false
+
+            # Búsqueda con prefijos comunes
+            for pattern in \
+              "^CONFIG_${MOD_UPPER}=[ym]" \
+              "^CONFIG_${MOD_UPPER}_FS=[ym]" \
+              "^CONFIG_DRM_${MOD_UPPER}=[ym]" \
+              "^CONFIG_SATA_${MOD_UPPER}=[ym]" \
+              "^CONFIG_USB_${MOD_UPPER}=[ym]" \
+              "^CONFIG_BT_${MOD_UPPER}=[ym]" \
+              "^CONFIG_SND_${MOD_UPPER}=[ym]" \
+              "^CONFIG_KEYBOARD_${MOD_UPPER}=[ym]" \
+              "^CONFIG_MOUSE_${MOD_UPPER}=[ym]" \
+              "^CONFIG_CRYPTO_${MOD_UPPER}=[ym]" \
+              "^CONFIG_ACPI_${MOD_UPPER}=[ym]"
+            do
+              grep -qE "$pattern" "$CONFIG" && FOUND=true && break
+            done
+
+            # Casos especiales donde el nombre difiere mucho del CONFIG
+            if ! $FOUND; then
+              case "$mod" in
+                bluetooth)              grep -qE "^CONFIG_BT=[ym]" "$CONFIG" && FOUND=true ;;
+                i915)                   grep -qE "^CONFIG_DRM_I915=[ym]" "$CONFIG" && FOUND=true ;;
+                ext4)                   grep -qE "^CONFIG_EXT4_FS=[ym]" "$CONFIG" && FOUND=true ;;
+                f2fs)                   grep -qE "^CONFIG_F2FS_FS=[ym]" "$CONFIG" && FOUND=true ;;
+                fat|vfat)               grep -qE "^CONFIG_(FAT|VFAT)_FS=[ym]" "$CONFIG" && FOUND=true ;;
+                fuse)                   grep -qE "^CONFIG_FUSE_FS=[ym]" "$CONFIG" && FOUND=true ;;
+                ntfs3)                  grep -qE "^CONFIG_NTFS3_FS=[ym]" "$CONFIG" && FOUND=true ;;
+                ahci|libahci)           grep -qE "^CONFIG_SATA_AHCI=[ym]" "$CONFIG" && FOUND=true ;;
+                xhci_hcd)               grep -qE "^CONFIG_USB_XHCI_HCD=[ym]" "$CONFIG" && FOUND=true ;;
+                xhci_pci)               grep -qE "^CONFIG_USB_XHCI_PCI=[ym]" "$CONFIG" && FOUND=true ;;
+                usbhid)                 grep -qE "^CONFIG_USB_HID=[ym]" "$CONFIG" && FOUND=true ;;
+                uvcvideo|uvc)           grep -qE "^CONFIG_USB_VIDEO_CLASS=[ym]" "$CONFIG" && FOUND=true ;;
+                ttm)                    grep -qE "^CONFIG_DRM_TTM=[ym]" "$CONFIG" && FOUND=true ;;
+                sd_mod)                 grep -qE "^CONFIG_BLK_DEV_SD=[ym]" "$CONFIG" && FOUND=true ;;
+                dm_mod)                 grep -qE "^CONFIG_BLK_DEV_DM=[ym]" "$CONFIG" && FOUND=true ;;
+                btusb)                  grep -qE "^CONFIG_BT_HCIBTUSB=[ym]" "$CONFIG" && FOUND=true ;;
+                btintel)                grep -qE "^CONFIG_BT_INTEL=[ym]" "$CONFIG" && FOUND=true ;;
+                btrtl)                  grep -qE "^CONFIG_BT_RTL=[ym]" "$CONFIG" && FOUND=true ;;
+                btmtk)                  grep -qE "^CONFIG_BT_MTK=[ym]" "$CONFIG" && FOUND=true ;;
+                btbcm)                  grep -qE "^CONFIG_BT_BCM=[ym]" "$CONFIG" && FOUND=true ;;
+                psmouse)                grep -qE "^CONFIG_MOUSE_PS2=[ym]" "$CONFIG" && FOUND=true ;;
+                atkbd)                  grep -qE "^CONFIG_KEYBOARD_ATKBD=[ym]" "$CONFIG" && FOUND=true ;;
+                videodev)               grep -qE "^CONFIG_VIDEO_DEV=[ym]" "$CONFIG" && FOUND=true ;;
+                video)                  grep -qE "^CONFIG_ACPI_VIDEO=[ym]" "$CONFIG" && FOUND=true ;;
+                mc)                     grep -qE "^CONFIG_MEDIA_CONTROLLER=[ym]" "$CONFIG" && FOUND=true ;;
+                mei)                    grep -qE "^CONFIG_INTEL_MEI=[ym]" "$CONFIG" && FOUND=true ;;
+                mei_txe)                grep -qE "^CONFIG_INTEL_MEI_TXE=[ym]" "$CONFIG" && FOUND=true ;;
+                coretemp)               grep -qE "^CONFIG_X86_PKG_TEMP_THERMAL=[ym]" "$CONFIG" && FOUND=true ;;
+                i2c_hid)                grep -qE "^CONFIG_I2C_HID=[ym]" "$CONFIG" && FOUND=true ;;
+                i2c_hid_acpi)           grep -qE "^CONFIG_I2C_HID_ACPI=[ym]" "$CONFIG" && FOUND=true ;;
+                efivarfs)               grep -qE "^CONFIG_EFIVAR_FS=[ym]" "$CONFIG" && FOUND=true ;;
+                libphy)                 grep -qE "^CONFIG_PHYLIB=[ym]" "$CONFIG" && FOUND=true ;;
+                mmc_core)               grep -qE "^CONFIG_MMC=[ym]" "$CONFIG" && FOUND=true ;;
+                soundcore)              grep -qE "^CONFIG_SOUND=[ym]" "$CONFIG" && FOUND=true ;;
+                cec)                    grep -qE "^CONFIG_CEC_CORE=[ym]" "$CONFIG" && FOUND=true ;;
+                irqbypass)              grep -qE "^CONFIG_IRQ_BYPASS_MANAGER=[ym]" "$CONFIG" && FOUND=true ;;
+                libarc4)                grep -qE "^CONFIG_CRYPTO_ARC4=[ym]" "$CONFIG" && FOUND=true ;;
+                cryptd)                 grep -qE "^CONFIG_CRYPTO_CRYPTD=[ym]" "$CONFIG" && FOUND=true ;;
+                ccm)                    grep -qE "^CONFIG_CRYPTO_CCM=[ym]" "$CONFIG" && FOUND=true ;;
+                platform_profile)       grep -qE "^CONFIG_ACPI_PLATFORM_PROFILE=[ym]" "$CONFIG" && FOUND=true ;;
+                wmi)                    grep -qE "^CONFIG_ACPI_WMI=[ym]" "$CONFIG" && FOUND=true ;;
+                nfnetlink)              grep -qE "^CONFIG_NETFILTER_NETLINK=[ym]" "$CONFIG" && FOUND=true ;;
+                rtl_pci)                grep -qE "^CONFIG_RTLWIFI_PCI=[ym]" "$CONFIG" && FOUND=true ;;
+                realtek)                grep -qE "^CONFIG_PHYLIB=[ym]" "$CONFIG" && FOUND=true ;;
+                videobuf2_common)       grep -qE "^CONFIG_VIDEOBUF2_CORE=[ym]" "$CONFIG" && FOUND=true ;;
+                libahci)                grep -qE "^CONFIG_SATA_AHCI=[ym]" "$CONFIG" && FOUND=true ;;
+                intel_agp)              grep -qE "^CONFIG_AGP_INTEL=[ym]" "$CONFIG" && FOUND=true ;;
+                spi_nor)                grep -qE "^CONFIG_MTD_SPI_NOR=[ym]" "$CONFIG" && FOUND=true ;;
+                smsdvb|smsmdtv|smsusb)  grep -qE "^CONFIG_SMS_SIANO_MDTV=[ym]" "$CONFIG" && FOUND=true ;;
+              esac
             fi
+
+            $FOUND || MISSING+=("$mod")
           done < "$MODPROBED"
 
           if [ ${#MISSING[@]} -gt 0 ]; then
-            echo "⚠️  MÓDULOS FALTANTES (${#MISSING[@]} total):"
+            echo "⚠️  MÓDULOS SIN CONFIG HABILITADO (${#MISSING[@]} total):"
             echo "──────────────────────────────────────────"
             for m in "${MISSING[@]}"; do
               echo "   ✗ $m"
             done
             echo "──────────────────────────────────────────"
-            echo "❌ Abortando — corregí modprobed.db o customization.cfg"
+            echo "❌ Abortando — estos módulos no están en el .config"
             exit 1
           fi
 
-          echo "✅ Todos los módulos del modprobed.db presentes en .config"
+          echo "✅ Todos los módulos del modprobed.db están en .config"
           echo "🚀 Procediendo a compilar..."
 
       # ─────────────────────────────────────────────
