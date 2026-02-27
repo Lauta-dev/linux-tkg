@@ -32,65 +32,50 @@ jobs:
       - name: 4. Clonar XanMod 5.15
         run: git clone --depth 1 --branch 5.15 https://github.com/xanmod/linux xanmod
 
-      - name: 5. Aplicar Modprobed-db y Hard-Coding Final - EL ÚLTIMO
+      - name: 5. Configuración Forzada con Scripts
         run: |
           cd xanmod
           make x86_64_defconfig
           LSMOD=$GITHUB_WORKSPACE/modprobed.db make localmodconfig
           
-          # LA CONFIGURACIÓN TOTAL E IRREVOCABLE
-          cat <<EOF >> .config
-          CONFIG_VT=y
-          CONFIG_VT_CONSOLE=y
-          CONFIG_DRM_I915=y
-          CONFIG_FRAMEBUFFER_CONSOLE=y
-          CONFIG_FB_EFI=y
-          CONFIG_DRM_FBDEV_EMULATION=y
-          CONFIG_MSILVERMONT=y
-          CONFIG_FONT_8x16=y
-          CONFIG_FONT_SUPPORT=y
-          CONFIG_EFI_STUB=y
-          CONFIG_DEVTMPFS=y
-          CONFIG_DEVTMPFS_MOUNT=y
-          CONFIG_SATA_AHCI=y
-          CONFIG_EXT4_FS=y
-          CONFIG_INPUT_KEYBOARD=y
-          CONFIG_USB_HID=y
-          CONFIG_UNIX=y
-          CONFIG_SHMEM=y
-          CONFIG_IOSF_MBI=y
-          CONFIG_INTEL_GTT=y
-          CONFIG_PCI_MSI=y
-          CONFIG_PM=y
-          CONFIG_ACPI=y
-          CONFIG_BLK_DEV_INITRD=y
-          CONFIG_RD_LZ4=y
-          CONFIG_RD_ZSTD=y
-          CONFIG_MICROCODE=y
-          CONFIG_MICROCODE_INTEL=y
-          CONFIG_MEMFD_CREATE=y
-          CONFIG_I2C_DESIGNWARE_PLATFORM=y
-          CONFIG_FB=y
-          CONFIG_VT=y
-          CONFIG_VT_CONSOLE=y
-          CONFIG_FRAMEBUFFER_CONSOLE=y
-          CONFIG_DRM_I915=y
-          CONFIG_DRM_FBDEV_EMULATION=y
-          CONFIG_FB_EFI=y
-          CONFIG_FONT_8x16=y
-          CONFIG_FONT_SUPPORT=y
-          EOF
+          # Herramienta mágica del kernel para evitar que olddefconfig borre cosas
+          KCONFIG="./scripts/config"
           
-          scripts/config --disable CONFIG_GENERIC_CPU
-          scripts/config --enable CONFIG_MSILVERMONT
+          # --- VIDEO Y CONSOLA (Lo que te faltaba) ---
+          $KCONFIG --enable CONFIG_FB
+          $KCONFIG --enable CONFIG_VT
+          $KCONFIG --enable CONFIG_VT_CONSOLE
+          $KCONFIG --enable CONFIG_FRAMEBUFFER_CONSOLE
+          $KCONFIG --enable CONFIG_DRM_FBDEV_EMULATION
+          $KCONFIG --enable CONFIG_DRM_I915
+          $KCONFIG --enable CONFIG_FB_EFI
+          $KCONFIG --enable CONFIG_FONT_8x16
+          $KCONFIG --enable CONFIG_FONT_SUPPORT
           
+          # --- BOOT Y SISTEMA ---
+          $KCONFIG --enable CONFIG_EFI_STUB
+          $KCONFIG --enable CONFIG_DEVTMPFS
+          $KCONFIG --enable CONFIG_DEVTMPFS_MOUNT
+          $KCONFIG --enable CONFIG_BLK_DEV_INITRD
+          $KCONFIG --enable CONFIG_RD_ZSTD
+          $KCONFIG --enable CONFIG_UNIX
+          $KCONFIG --enable CONFIG_SHMEM
+          
+          # --- HARDWARE SILVERMONT ---
+          $KCONFIG --disable CONFIG_GENERIC_CPU
+          $KCONFIG --enable CONFIG_MSILVERMONT
+          $KCONFIG --enable CONFIG_IOSF_MBI
+          $KCONFIG --enable CONFIG_INTEL_GTT
+          $KCONFIG --enable CONFIG_MICROCODE
+          $KCONFIG --enable CONFIG_MICROCODE_INTEL
+          
+          # Aplicar y limpiar
           make olddefconfig
           
-          # Sello final de seguridad
-          echo "CONFIG_FRAMEBUFFER_CONSOLE=y" >> .config
-          echo "CONFIG_DRM_I915=y" >> .config
-          echo "CONFIG_VT=y" >> .config
-          echo "CONFIG_MEMFD_CREATE=y" >> .config
+          # VERIFICACIÓN EN EL LOG (Para que veas si funcionó antes de compilar)
+          echo "--- VERIFICACIÓN DE SEGURIDAD ---"
+          grep "CONFIG_FRAMEBUFFER_CONSOLE" .config || echo "ERROR: No se activó la consola"
+          grep "CONFIG_DRM_I915" .config || echo "ERROR: No se activó el driver de video"
 
 
       - name: 6. Compilar
