@@ -46,7 +46,12 @@ jobs:
           scripts/config --disable CONFIG_KERNEL_GZIP
           scripts/config --disable CONFIG_KERNEL_ZSTD
           scripts/config --enable CONFIG_KERNEL_LZ4
+          # Video Intel para Celeron Silvermont
           scripts/config --enable CONFIG_DRM_I915
+          scripts/config --enable CONFIG_DRM_I915_GVT
+          scripts/config --enable CONFIG_DRM_I915_GVT_KVMGT
+          scripts/config --enable CONFIG_FB_EFI
+          scripts/config --enable CONFIG_FRAMEBUFFER_CONSOLE
           
           make olddefconfig
 
