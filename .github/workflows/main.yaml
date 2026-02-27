@@ -177,18 +177,39 @@ jobs:
           echo "CCACHE_DIR=/root/.ccache" >> $GITHUB_ENV
 
       # ─────────────────────────────────────────────
-      # 10. Prepare: fetch + generate .config (sin compilar)
+      # 10. Crear builduser (makepkg no puede correr como root)
+      # ─────────────────────────────────────────────
+      - name: Create build user
+        run: |
+          useradd -m builduser
+          echo "builduser ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builduser
+          # Dar permisos sobre el workspace y el modprobed.db
+          chown -R builduser:builduser /__w
+          cp /home/runner/modprobed.db /home/builduser/modprobed.db
+          mkdir -p /home/builduser/.config
+          cp /home/runner/modprobed.db /home/builduser/.config/modprobed.db
+          chown -R builduser:builduser /home/builduser
+          # Actualizar customization.cfg para que apunte al home de builduser
+          sed -i 's|_modprobeddb_db_path=".*"|_modprobeddb_db_path="/home/builduser/modprobed.db"|' linux-tkg/customization.cfg
+          echo "✅ builduser creado"
+          echo "✅ modprobed.db copiado a /home/builduser/"
+          grep "_modprobeddb_db_path" linux-tkg/customization.cfg
+
+      # ─────────────────────────────────────────────
+      # 11. Prepare: fetch + generate .config (sin compilar)
       # ─────────────────────────────────────────────
       - name: Prepare kernel source and generate .config
         run: |
-          cd linux-tkg
-          yes "" | makepkg --nobuild --noconfirm --skippgpcheck 2>&1 || true
+          sudo -u builduser bash -c "
+            cd /__w/linux-tkg/linux-tkg/linux-tkg
+            yes '' | makepkg --nobuild --noconfirm --skippgpcheck
+          "
 
-          CONFIG=$(find src -name ".config" 2>/dev/null | head -1)
+          CONFIG=$(find linux-tkg/src -name ".config" 2>/dev/null | head -1)
           if [ -z "$CONFIG" ]; then
             echo "❌ ERROR: makepkg --nobuild no generó el .config"
-            echo "=== Contenido de src/ ==="
-            ls -la src/ 2>/dev/null || echo "src/ no existe"
+            echo "=== Contenido de linux-tkg/src/ ==="
+            ls -la linux-tkg/src/ 2>/dev/null || echo "src/ no existe"
             exit 1
           fi
           echo "✅ .config generado en: $CONFIG"
@@ -235,15 +256,16 @@ jobs:
           echo "🚀 Procediendo a compilar..."
 
       # ─────────────────────────────────────────────
-      # 12. Compilación
+      # 13. Compilación
       # ─────────────────────────────────────────────
       - name: Compile Kernel
         run: |
-          cd linux-tkg
-          yes "" | makepkg --noextract --noconfirm --skippgpcheck
-        env:
-          MAKEFLAGS: "-j$(nproc)"
-          CCACHE_DIR: /root/.ccache
+          sudo -u builduser bash -c "
+            export MAKEFLAGS='-j\$(nproc)'
+            export CCACHE_DIR=/root/.ccache
+            cd /__w/linux-tkg/linux-tkg/linux-tkg
+            yes '' | makepkg --noextract --noconfirm --skippgpcheck
+          "
 
       - name: Show ccache stats
         if: always()
