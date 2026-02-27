@@ -209,16 +209,26 @@ jobs:
           sudo -u builduser bash -c "
             cd /__w/linux-tkg/linux-tkg/linux-tkg
             yes '' | makepkg --nobuild --noconfirm --skippgpcheck
-          "
+          " || true
 
-          CONFIG=$(find linux-tkg/src -name ".config" 2>/dev/null | head -1)
+          echo "=== Buscando .config en todo linux-tkg ==="
+          find /__w/linux-tkg/linux-tkg/linux-tkg -name ".config" 2>/dev/null
+
+          echo "=== Estructura de src/ ==="
+          ls -la /__w/linux-tkg/linux-tkg/linux-tkg/src/ 2>/dev/null || echo "src/ no existe"
+
+          echo "=== Estructura de linux-src-git ==="
+          ls -la /__w/linux-tkg/linux-tkg/linux-tkg/src/linux-src-git/ 2>/dev/null || echo "linux-src-git no existe"
+
+          # TKG usa git clone en linux-src-git, el .config queda ahí
+          CONFIG=$(find /__w/linux-tkg/linux-tkg/linux-tkg/src -name ".config" 2>/dev/null | head -1)
           if [ -z "$CONFIG" ]; then
-            echo "❌ ERROR: makepkg --nobuild no generó el .config"
-            echo "=== Contenido de linux-tkg/src/ ==="
-            ls -la linux-tkg/src/ 2>/dev/null || echo "src/ no existe"
+            echo "❌ .config no encontrado — revisá la estructura arriba"
             exit 1
           fi
-          echo "✅ .config generado en: $CONFIG"
+          echo "✅ .config encontrado en: $CONFIG"
+          # Exportar path para el step de verificación
+          echo "KERNEL_CONFIG=$CONFIG" >> $GITHUB_ENV
         env:
           MAKEFLAGS: "-j$(nproc)"
           CCACHE_DIR: /root/.ccache
@@ -228,11 +238,14 @@ jobs:
       # ─────────────────────────────────────────────
       - name: "14 - Verify modprobed.db modules in .config"
         run: |
-          CONFIG=$(find linux-tkg/src -name ".config" 2>/dev/null | head -1)
+          # Usar el path exportado por el step 13
+          CONFIG="$KERNEL_CONFIG"
 
-          if [ -z "$CONFIG" ]; then
-            echo "❌ ERROR: No se encontró .config"
-            exit 1
+          if [ -z "$CONFIG" ] || [ ! -f "$CONFIG" ]; then
+            echo "❌ ERROR: No se encontró .config (KERNEL_CONFIG=$KERNEL_CONFIG)"
+            echo "Buscando manualmente..."
+            CONFIG=$(find /__w/linux-tkg/linux-tkg/linux-tkg/src -name ".config" 2>/dev/null | head -1)
+            [ -z "$CONFIG" ] && exit 1
           fi
 
           echo "✅ .config: $CONFIG"
