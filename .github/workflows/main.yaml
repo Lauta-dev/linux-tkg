@@ -252,7 +252,7 @@ jobs:
           echo "✅ .config encontrado en: $CONFIG"
           echo "KERNEL_CONFIG=$CONFIG" >> $GITHUB_ENV
         env:
-          MAKEFLAGS: "-j$(nproc)"
+          MAKEFLAGS: "-j4"
           CCACHE_DIR: /root/.ccache
 
       # ─────────────────────────────────────────────
@@ -385,12 +385,15 @@ jobs:
       # ─────────────────────────────────────────────
       - name: "15 - Compile Kernel"
         run: |
+          # Evaluar nproc antes del sudo para que no quede vacío
+          JOBS=$(nproc)
+          echo "Compilando con $JOBS cores"
           sudo -u builduser bash -c "
-            export MAKEFLAGS='-j\$(nproc)'
+            export MAKEFLAGS='-j${JOBS}'
             export CCACHE_DIR=/root/.ccache
             cd /__w/linux-tkg/linux-tkg/linux-tkg
             yes '' | makepkg --noextract --noconfirm --skippgpcheck
-          "
+          " JOBS="$JOBS"
 
       - name: "16 - Show ccache stats"
         if: always()
