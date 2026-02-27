@@ -94,7 +94,7 @@ jobs:
       - name: "07 - Cache kernel source tarball"
         uses: actions/cache@v4
         with:
-          path: linux-tkg/src
+          path: linux-tkg/linux-src-git
           key: kernel-src-6.6-${{ hashFiles('myrepo/customization.cfg') }}
           restore-keys: |
             kernel-src-6.6-
@@ -143,9 +143,7 @@ jobs:
             'CONFIG_RTL8723_COMMON=m' \
             'CONFIG_RTLWIFI=m' \
             'CONFIG_RTLWIFI_PCI=m' \
-            'CONFIG_RTW88=m' \
-            'CONFIG_RTW88_PCI=m' \
-            'CONFIG_RTW88_8723BE=m' \
+            '# CONFIG_RTW88 deshabilitado — NOT SET en 6.6 base' \
             '# Namespaces' \
             'CONFIG_USER_NS=y' \
             'CONFIG_NAMESPACES=y' \
@@ -166,7 +164,7 @@ jobs:
       - name: "10 - Cache ccache objects"
         uses: actions/cache@v4
         with:
-          path: /root/.ccache
+          path: /tmp/ccache
           key: ccache-kernel-6.6-${{ hashFiles('myrepo/customization.cfg') }}-${{ github.sha }}
           restore-keys: |
             ccache-kernel-6.6-${{ hashFiles('myrepo/customization.cfg') }}-
@@ -174,17 +172,21 @@ jobs:
 
       - name: "11 - Configure ccache"
         run: |
-          ccache --max-size=5G
-          ccache --zero-stats
+          # Crear dir de ccache accesible por builduser (se crea antes del builduser
+          # pero chown se hace en step 12)
+          mkdir -p /tmp/ccache
+          ccache --dir /tmp/ccache --max-size=5G
+          ccache --dir /tmp/ccache --zero-stats
           echo "PATH=/usr/lib/ccache/bin:$PATH" >> $GITHUB_ENV
-          echo "CCACHE_DIR=/root/.ccache" >> $GITHUB_ENV
+          echo "CCACHE_DIR=/tmp/ccache" >> $GITHUB_ENV
 
       # ─────────────────────────────────────────────
       # 10. Crear builduser (makepkg no puede correr como root)
       # ─────────────────────────────────────────────
       - name: "12 - Create build user"
         run: |
-          useradd -m builduser
+          useradd --no-create-home builduser
+          mkdir -p /home/builduser
           echo "builduser ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builduser
           # Solo dar permisos sobre las carpetas que necesita builduser
           # NO hacer chown de /__w completo — rompe archivos internos de Actions
@@ -195,6 +197,9 @@ jobs:
           mkdir -p /home/builduser/.config
           cp /home/runner/modprobed.db /home/builduser/.config/modprobed.db
           chown -R builduser:builduser /home/builduser
+          # Dar acceso a /tmp/ccache al builduser
+          mkdir -p /tmp/ccache
+          chown -R builduser:builduser /tmp/ccache
           # Actualizar path en customization.cfg
           sed -i 's|_modprobeddb_db_path=".*"|_modprobeddb_db_path="/home/builduser/modprobed.db"|' /__w/linux-tkg/linux-tkg/linux-tkg/customization.cfg
           echo "✅ builduser creado"
@@ -254,27 +259,11 @@ jobs:
           echo "KERNEL_CONFIG=$CONFIG" >> $GITHUB_ENV
         env:
           MAKEFLAGS: "-j4"
-          CCACHE_DIR: /root/.ccache
+          CCACHE_DIR: /tmp/ccache
 
       # ─────────────────────────────────────────────
       # 11. Verificar módulos ANTES de compilar
       # ─────────────────────────────────────────────
-      - name: "13b - Upload .config artifact"
-        if: always()
-        run: |
-          # Copiar .config a un path accesible por upload-artifact
-          mkdir -p /tmp/kernel-config
-          cp "$KERNEL_CONFIG" /tmp/kernel-config/kernel.config 2>/dev/null             || echo "⚠️ No se pudo copiar el .config"
-          ls -la /tmp/kernel-config/ || true
-
-      - name: "13c - Upload .config"
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kernel-config-${{ steps.tag.outputs.tag }}
-          path: /tmp/kernel-config/kernel.config
-          if-no-files-found: warn
-
       - name: "14 - Verify modprobed.db modules in .config"
         if: false  # Deshabilitado — falsos negativos por diferencia entre nombre de módulo y CONFIG_
         run: |
@@ -388,28 +377,33 @@ jobs:
         run: |
           JOBS=$(nproc)
           echo "Compilando con $JOBS cores"
-          sudo -u builduser bash -c "
-            export MAKEFLAGS="-j${JOBS}"
-            export CCACHE_DIR=/root/.ccache
+          # Exportar variables antes del sudo para evitar problemas de quoting
+          export MAKEFLAGS="-j${JOBS}"
+          export CCACHE_DIR=/tmp/ccache
+          sudo -E -u builduser bash -c "
             cd /__w/linux-tkg/linux-tkg/linux-tkg
             yes '' | makepkg --noconfirm --skippgpcheck
-          " JOBS="$JOBS"
+          "
 
       - name: "16 - Show ccache stats"
         if: always()
-        run: ccache --show-stats
+        run: sudo -u builduser ccache --show-stats
+        env:
+          CCACHE_DIR: /tmp/ccache
 
       # ─────────────────────────────────────────────
       # 13. Buscar paquetes (siempre, para debug)
       # ─────────────────────────────────────────────
-      - name: "17 - Find packages"
+      - name: "17 - Collect and stage packages"
         if: always()
         run: |
           echo "=== Buscando .pkg.tar.zst ==="
-          find linux-tkg -name "*.pkg.tar.zst" 2>/dev/null
-          echo "=== Contenido de non-interactive-build-output ==="
-          ls -la linux-tkg/non-interactive-build-output/ 2>/dev/null \
-            || echo "Directorio no encontrado"
+          find /__w -name "*.pkg.tar.zst" 2>/dev/null || echo "ninguno"
+          # Copiar paquetes al workspace relativo para que softprops pueda accederlos
+          mkdir -p linux-tkg/output
+          find /__w/linux-tkg/linux-tkg/linux-tkg -maxdepth 1 -name "*.pkg.tar.zst"             -exec cp {} linux-tkg/output/ \; 2>/dev/null || true
+          echo "=== Paquetes en linux-tkg/output/ ==="
+          ls -la linux-tkg/output/ 2>/dev/null || echo "ninguno"
 
       # ─────────────────────────────────────────────
       # 14. Crear Release
@@ -466,7 +460,7 @@ jobs:
             > ⚠️ **Nota:** Este kernel está optimizado específicamente para el N2807.
             > Las mitigaciones de CPU están deshabilitadas para maximizar rendimiento.
             > No instalar en hardware diferente sin recompilar.
-          files: linux-tkg/non-interactive-build-output/*.pkg.tar.zst
+          files: linux-tkg/output/*.pkg.tar.zst
           draft: false
           prerelease: false
         env:
