@@ -183,17 +183,20 @@ jobs:
         run: |
           useradd -m builduser
           echo "builduser ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builduser
-          # Dar permisos sobre el workspace y el modprobed.db
-          chown -R builduser:builduser /__w
+          # Solo dar permisos sobre las carpetas que necesita builduser
+          # NO hacer chown de /__w completo — rompe archivos internos de Actions
+          chown -R builduser:builduser /__w/linux-tkg/linux-tkg/linux-tkg
+          chown -R builduser:builduser /__w/linux-tkg/linux-tkg/myrepo
+          # modprobed.db en home de builduser
           cp /home/runner/modprobed.db /home/builduser/modprobed.db
           mkdir -p /home/builduser/.config
           cp /home/runner/modprobed.db /home/builduser/.config/modprobed.db
           chown -R builduser:builduser /home/builduser
-          # Actualizar customization.cfg para que apunte al home de builduser
-          sed -i 's|_modprobeddb_db_path=".*"|_modprobeddb_db_path="/home/builduser/modprobed.db"|' linux-tkg/customization.cfg
+          # Actualizar path en customization.cfg
+          sed -i 's|_modprobeddb_db_path=".*"|_modprobeddb_db_path="/home/builduser/modprobed.db"|' /__w/linux-tkg/linux-tkg/linux-tkg/customization.cfg
           echo "✅ builduser creado"
-          echo "✅ modprobed.db copiado a /home/builduser/"
-          grep "_modprobeddb_db_path" linux-tkg/customization.cfg
+          echo "✅ modprobed.db → /home/builduser/modprobed.db"
+          grep "_modprobeddb_db_path" /__w/linux-tkg/linux-tkg/linux-tkg/customization.cfg
 
       # ─────────────────────────────────────────────
       # 11. Prepare: fetch + generate .config (sin compilar)
