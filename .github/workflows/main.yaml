@@ -32,16 +32,13 @@ jobs:
       - name: 4. Clonar XanMod 5.15
         run: git clone --depth 1 --branch 5.15 https://github.com/xanmod/linux xanmod
 
-      - name: 5. Aplicar Modprobed-db y Hard-Coding de Drivers
+      - name: 5. Aplicar Modprobed-db y Hard-Coding Final - EL ÚLTIMO
         run: |
           cd xanmod
           make x86_64_defconfig
-          
-          # 1. Aplicamos la dieta (esto borrará cosas que no están en el db)
           LSMOD=$GITHUB_WORKSPACE/modprobed.db make localmodconfig
           
-          # 2. RE-INYECCIÓN FORZADA (Esto sobreescribe cualquier borrado)
-          # Usamos un bloque de texto al final del archivo para que mande sobre lo anterior
+          # LA CONFIGURACIÓN TOTAL E IRREVOCABLE
           cat <<EOF >> .config
           CONFIG_VT=y
           CONFIG_VT_CONSOLE=y
@@ -50,15 +47,42 @@ jobs:
           CONFIG_FB_EFI=y
           CONFIG_DRM_FBDEV_EMULATION=y
           CONFIG_MSILVERMONT=y
-          CONFIG_MATOM=n
-          CONFIG_GENERIC_CPU=n
+          CONFIG_FONT_8x16=y
+          CONFIG_FONT_SUPPORT=y
+          CONFIG_EFI_STUB=y
+          CONFIG_DEVTMPFS=y
+          CONFIG_DEVTMPFS_MOUNT=y
+          CONFIG_SATA_AHCI=y
+          CONFIG_EXT4_FS=y
+          CONFIG_INPUT_KEYBOARD=y
+          CONFIG_USB_HID=y
+          CONFIG_UNIX=y
+          CONFIG_SHMEM=y
+          CONFIG_IOSF_MBI=y
+          CONFIG_INTEL_GTT=y
+          CONFIG_PCI_MSI=y
+          CONFIG_PM=y
+          CONFIG_ACPI=y
+          CONFIG_BLK_DEV_INITRD=y
+          CONFIG_RD_LZ4=y
+          CONFIG_RD_ZSTD=y
+          CONFIG_MICROCODE=y
+          CONFIG_MICROCODE_INTEL=y
+          CONFIG_MEMFD_CREATE=y
+          CONFIG_I2C_DESIGNWARE_PLATFORM=y
           EOF
           
-          # 3. Limpiar inconsistencias y fijar la optimización Silvermont
           scripts/config --disable CONFIG_GENERIC_CPU
           scripts/config --enable CONFIG_MSILVERMONT
           
           make olddefconfig
+          
+          # Sello final de seguridad
+          echo "CONFIG_FRAMEBUFFER_CONSOLE=y" >> .config
+          echo "CONFIG_DRM_I915=y" >> .config
+          echo "CONFIG_VT=y" >> .config
+          echo "CONFIG_MEMFD_CREATE=y" >> .config
+
 
       - name: 6. Compilar
         run: |
