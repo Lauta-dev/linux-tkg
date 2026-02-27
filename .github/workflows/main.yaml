@@ -36,9 +36,12 @@ jobs:
         run: |
           cd xanmod
           make x86_64_defconfig
+          
+          # 1. Aplicamos tu dieta de drivers
           LSMOD=$GITHUB_WORKSPACE/modprobed.db make localmodconfig
           
-          # --- FIX PANTALLA GRIS (Basado en lo que faltaba en tu .config) ---
+          # 2. FORZAMOS VIDEO E INTERFAZ (Modo impositivo)
+          # Esto asegura que el driver no sea un módulo (.ko) sino que esté dentro del vmlinuz
           scripts/config --enable CONFIG_VT
           scripts/config --enable CONFIG_VT_CONSOLE
           scripts/config --enable CONFIG_FRAMEBUFFER_CONSOLE
@@ -46,18 +49,17 @@ jobs:
           scripts/config --enable CONFIG_DRM_I915
           scripts/config --enable CONFIG_DRM_FBDEV_EMULATION
           
-          # --- OPTIMIZACIÓN SILVERMONT N2807 ---
+          # 3. OPTIMIZACIONES SILVERMONT
           scripts/config --enable CONFIG_MATOM
           scripts/config --enable CONFIG_PREEMPT
-          scripts/config --disable CONFIG_DEBUG_INFO
           scripts/config --disable CONFIG_X86_5LEVEL
-          
-          # --- COMPRESIÓN LZ4 (Para Dracut y Kernel) ---
-          scripts/config --disable CONFIG_KERNEL_GZIP
           scripts/config --enable CONFIG_KERNEL_LZ4
           
-          # Asegurar que el sistema de archivos no sea módulo
-          scripts/config --enable CONFIG_EXT4_FS
+          # 4. TRUCO FINAL: Aseguramos 'y' (Built-in) manualmente
+          # A veces scripts/config no sobreescribe módulos ya marcados por localmodconfig
+          sed -i 's/CONFIG_DRM_I915=m/CONFIG_DRM_I915=y/' .config
+          sed -i 's/CONFIG_FB_EFI=m/CONFIG_FB_EFI=y/' .config
+          sed -i 's/CONFIG_FRAMEBUFFER_CONSOLE=m/CONFIG_FRAMEBUFFER_CONSOLE=y/' .config
           
           make olddefconfig
 
@@ -68,10 +70,14 @@ jobs:
           export PATH="/usr/lib/ccache:$PATH"
           make -j$(nproc) bzImage modules
 
-      - name: 7. Empaquetado
+      - name: 7. Empaquetado (Incluye .config)
         run: |
           mkdir -p output/boot
+          # Copiamos el kernel
           cp xanmod/arch/x86/boot/bzImage output/boot/vmlinuz-515-xanmod-silvermont
+          # Copiamos el archivo .config para tenerlo de respaldo
+          cp xanmod/.config output/boot/config-515-xanmod-silvermont
+          
           cd xanmod
           sudo make INSTALL_MOD_PATH=../output modules_install
           cd ../output
