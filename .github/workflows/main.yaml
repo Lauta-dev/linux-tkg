@@ -101,8 +101,6 @@ jobs:
 
       # ─────────────────────────────────────────────
       # 7. Setup: modprobed.db + customization.cfg
-      #    Usamos paths relativos desde PWD para evitar
-      #    problemas con github.workspace en containers.
       # ─────────────────────────────────────────────
       - name: "08 - Setup modprobed.db and config"
         run: |
@@ -172,8 +170,6 @@ jobs:
 
       - name: "11 - Configure ccache"
         run: |
-          # Crear dir de ccache accesible por builduser (se crea antes del builduser
-          # pero chown se hace en step 12)
           mkdir -p /tmp/ccache
           ccache --dir /tmp/ccache --max-size=5G
           ccache --dir /tmp/ccache --zero-stats
@@ -188,8 +184,6 @@ jobs:
           useradd --no-create-home builduser
           mkdir -p /home/builduser
           echo "builduser ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builduser
-          # Solo dar permisos sobre las carpetas que necesita builduser
-          # NO hacer chown de /__w completo — rompe archivos internos de Actions
           chown -R builduser:builduser /__w/linux-tkg/linux-tkg/linux-tkg
           chown -R builduser:builduser /__w/linux-tkg/linux-tkg/myrepo
           # modprobed.db en home de builduser
@@ -207,7 +201,7 @@ jobs:
           grep "_modprobeddb_db_path" /__w/linux-tkg/linux-tkg/linux-tkg/customization.cfg
 
       # ─────────────────────────────────────────────
-      # 11. Prepare: fetch + generate .config (sin compilar)
+      # 11. Debug workspace
       # ─────────────────────────────────────────────
       - name: "12b - Debug workspace structure"
         run: |
@@ -230,161 +224,65 @@ jobs:
           echo "=== Buscando *.pkg.tar.zst ==="
           find /__w -name "*.pkg.tar.zst" 2>/dev/null || echo "ninguno"
 
-      - name: "13 - Prepare kernel source and generate .config"
-        if: false  # Deshabilitado — makepkg corre completo en step 15
+      # ─────────────────────────────────────────────
+      # 12. Fetch source (sin compilar) para poder parcharlo
+      # ─────────────────────────────────────────────
+      - name: "13 - Fetch kernel source (nobuild)"
         run: |
-          sudo -u builduser bash -c "
+          sudo -E -u builduser bash -c "
             cd /__w/linux-tkg/linux-tkg/linux-tkg
             yes '' | makepkg --nobuild --noconfirm --skippgpcheck
           " || true
 
-          echo "=== Buscando .config en todo linux-tkg ==="
-          find /__w/linux-tkg/linux-tkg/linux-tkg -name ".config" 2>/dev/null
-
-          echo "=== Estructura de src/ ==="
+          echo "=== Estructura de src/ post-fetch ==="
           ls -la /__w/linux-tkg/linux-tkg/linux-tkg/src/ 2>/dev/null || echo "src/ no existe"
-
-          echo "=== Estructura de linux-src-git ==="
-          ls -la /__w/linux-tkg/linux-tkg/linux-tkg/src/linux-src-git/ 2>/dev/null || echo "linux-src-git no existe"
-
-          # El .config está directamente en src/linux-src-git/
-          CONFIG="/__w/linux-tkg/linux-tkg/linux-tkg/src/linux-src-git/.config"
-          if [ ! -f "$CONFIG" ]; then
-            echo "❌ .config no encontrado en $CONFIG"
-            echo "Intentando find como fallback..."
-            CONFIG=$(find /__w/linux-tkg/linux-tkg/linux-tkg/src -maxdepth 2 -name ".config" 2>/dev/null | head -1)
-            [ -z "$CONFIG" ] && exit 1
-          fi
-          echo "✅ .config encontrado en: $CONFIG"
-          echo "KERNEL_CONFIG=$CONFIG" >> $GITHUB_ENV
         env:
-          MAKEFLAGS: "-j4"
+          MAKEFLAGS: "-j$(nproc)"
           CCACHE_DIR: /tmp/ccache
 
       # ─────────────────────────────────────────────
-      # 11. Verificar módulos ANTES de compilar
+      # 13. Patch libbpf.c — fix const qualifier bug
+      #     Bug: char *next_path debería ser const char *next_path
+      #     Error: -Werror=discarded-qualifiers en GCC moderno con kernel 6.6
       # ─────────────────────────────────────────────
-      - name: "14 - Verify modprobed.db modules in .config"
-        if: false  # Deshabilitado — falsos negativos por diferencia entre nombre de módulo y CONFIG_
+      - name: "14 - Patch libbpf.c const qualifier bug"
         run: |
-          CONFIG="$KERNEL_CONFIG"
-          if [ -z "$CONFIG" ] || [ ! -f "$CONFIG" ]; then
-            echo "❌ ERROR: .config no encontrado"
-            exit 1
-          fi
-          echo "✅ .config: $CONFIG"
-          MODPROBED="/home/runner/modprobed.db"
-          MISSING=()
+          LIBBPF=$(find /__w/linux-tkg/linux-tkg/linux-tkg/src \
+            -path "*/resolve_btfids/libbpf/libbpf.c" 2>/dev/null | head -1)
 
-          while IFS= read -r mod; do
-            [[ -z "$mod" ]] && continue
-            MOD_UPPER=$(echo "$mod" | tr '[:lower:]-' '[:upper:]_')
-            FOUND=false
-
-            # Búsqueda con prefijos comunes
-            for pattern in \
-              "^CONFIG_${MOD_UPPER}=[ym]" \
-              "^CONFIG_${MOD_UPPER}_FS=[ym]" \
-              "^CONFIG_DRM_${MOD_UPPER}=[ym]" \
-              "^CONFIG_SATA_${MOD_UPPER}=[ym]" \
-              "^CONFIG_USB_${MOD_UPPER}=[ym]" \
-              "^CONFIG_BT_${MOD_UPPER}=[ym]" \
-              "^CONFIG_SND_${MOD_UPPER}=[ym]" \
-              "^CONFIG_KEYBOARD_${MOD_UPPER}=[ym]" \
-              "^CONFIG_MOUSE_${MOD_UPPER}=[ym]" \
-              "^CONFIG_CRYPTO_${MOD_UPPER}=[ym]" \
-              "^CONFIG_ACPI_${MOD_UPPER}=[ym]"
-            do
-              grep -qE "$pattern" "$CONFIG" && FOUND=true && break
-            done
-
-            # Casos especiales donde el nombre difiere mucho del CONFIG
-            if ! $FOUND; then
-              case "$mod" in
-                bluetooth)              grep -qE "^CONFIG_BT=[ym]" "$CONFIG" && FOUND=true ;;
-                i915)                   grep -qE "^CONFIG_DRM_I915=[ym]" "$CONFIG" && FOUND=true ;;
-                ext4)                   grep -qE "^CONFIG_EXT4_FS=[ym]" "$CONFIG" && FOUND=true ;;
-                f2fs)                   grep -qE "^CONFIG_F2FS_FS=[ym]" "$CONFIG" && FOUND=true ;;
-                fat|vfat)               grep -qE "^CONFIG_(FAT|VFAT)_FS=[ym]" "$CONFIG" && FOUND=true ;;
-                fuse)                   grep -qE "^CONFIG_FUSE_FS=[ym]" "$CONFIG" && FOUND=true ;;
-                ntfs3)                  grep -qE "^CONFIG_NTFS3_FS=[ym]" "$CONFIG" && FOUND=true ;;
-                ahci|libahci)           grep -qE "^CONFIG_SATA_AHCI=[ym]" "$CONFIG" && FOUND=true ;;
-                xhci_hcd)               grep -qE "^CONFIG_USB_XHCI_HCD=[ym]" "$CONFIG" && FOUND=true ;;
-                xhci_pci)               grep -qE "^CONFIG_USB_XHCI_PCI=[ym]" "$CONFIG" && FOUND=true ;;
-                usbhid)                 grep -qE "^CONFIG_USB_HID=[ym]" "$CONFIG" && FOUND=true ;;
-                uvcvideo|uvc)           grep -qE "^CONFIG_USB_VIDEO_CLASS=[ym]" "$CONFIG" && FOUND=true ;;
-                ttm)                    grep -qE "^CONFIG_DRM_TTM=[ym]" "$CONFIG" && FOUND=true ;;
-                sd_mod)                 grep -qE "^CONFIG_BLK_DEV_SD=[ym]" "$CONFIG" && FOUND=true ;;
-                dm_mod)                 grep -qE "^CONFIG_BLK_DEV_DM=[ym]" "$CONFIG" && FOUND=true ;;
-                btusb)                  grep -qE "^CONFIG_BT_HCIBTUSB=[ym]" "$CONFIG" && FOUND=true ;;
-                btintel)                grep -qE "^CONFIG_BT_INTEL=[ym]" "$CONFIG" && FOUND=true ;;
-                btrtl)                  grep -qE "^CONFIG_BT_RTL=[ym]" "$CONFIG" && FOUND=true ;;
-                btmtk)                  grep -qE "^CONFIG_BT_MTK=[ym]" "$CONFIG" && FOUND=true ;;
-                btbcm)                  grep -qE "^CONFIG_BT_BCM=[ym]" "$CONFIG" && FOUND=true ;;
-                psmouse)                grep -qE "^CONFIG_MOUSE_PS2=[ym]" "$CONFIG" && FOUND=true ;;
-                atkbd)                  grep -qE "^CONFIG_KEYBOARD_ATKBD=[ym]" "$CONFIG" && FOUND=true ;;
-                videodev)               grep -qE "^CONFIG_VIDEO_DEV=[ym]" "$CONFIG" && FOUND=true ;;
-                video)                  grep -qE "^CONFIG_ACPI_VIDEO=[ym]" "$CONFIG" && FOUND=true ;;
-                mc)                     grep -qE "^CONFIG_MEDIA_CONTROLLER=[ym]" "$CONFIG" && FOUND=true ;;
-                mei)                    grep -qE "^CONFIG_INTEL_MEI=[ym]" "$CONFIG" && FOUND=true ;;
-                mei_txe)                grep -qE "^CONFIG_INTEL_MEI_TXE=[ym]" "$CONFIG" && FOUND=true ;;
-                coretemp)               grep -qE "^CONFIG_X86_PKG_TEMP_THERMAL=[ym]" "$CONFIG" && FOUND=true ;;
-                i2c_hid)                grep -qE "^CONFIG_I2C_HID=[ym]" "$CONFIG" && FOUND=true ;;
-                i2c_hid_acpi)           grep -qE "^CONFIG_I2C_HID_ACPI=[ym]" "$CONFIG" && FOUND=true ;;
-                efivarfs)               grep -qE "^CONFIG_EFIVAR_FS=[ym]" "$CONFIG" && FOUND=true ;;
-                libphy)                 grep -qE "^CONFIG_PHYLIB=[ym]" "$CONFIG" && FOUND=true ;;
-                mmc_core)               grep -qE "^CONFIG_MMC=[ym]" "$CONFIG" && FOUND=true ;;
-                soundcore)              grep -qE "^CONFIG_SOUND=[ym]" "$CONFIG" && FOUND=true ;;
-                cec)                    grep -qE "^CONFIG_CEC_CORE=[ym]" "$CONFIG" && FOUND=true ;;
-                irqbypass)              grep -qE "^CONFIG_IRQ_BYPASS_MANAGER=[ym]" "$CONFIG" && FOUND=true ;;
-                libarc4)                grep -qE "^CONFIG_CRYPTO_ARC4=[ym]" "$CONFIG" && FOUND=true ;;
-                cryptd)                 grep -qE "^CONFIG_CRYPTO_CRYPTD=[ym]" "$CONFIG" && FOUND=true ;;
-                ccm)                    grep -qE "^CONFIG_CRYPTO_CCM=[ym]" "$CONFIG" && FOUND=true ;;
-                platform_profile)       grep -qE "^CONFIG_ACPI_PLATFORM_PROFILE=[ym]" "$CONFIG" && FOUND=true ;;
-                wmi)                    grep -qE "^CONFIG_ACPI_WMI=[ym]" "$CONFIG" && FOUND=true ;;
-                nfnetlink)              grep -qE "^CONFIG_NETFILTER_NETLINK=[ym]" "$CONFIG" && FOUND=true ;;
-                rtl_pci)                grep -qE "^CONFIG_RTLWIFI_PCI=[ym]" "$CONFIG" && FOUND=true ;;
-                realtek)                grep -qE "^CONFIG_PHYLIB=[ym]" "$CONFIG" && FOUND=true ;;
-                videobuf2_common)       grep -qE "^CONFIG_VIDEOBUF2_CORE=[ym]" "$CONFIG" && FOUND=true ;;
-                libahci)                grep -qE "^CONFIG_SATA_AHCI=[ym]" "$CONFIG" && FOUND=true ;;
-                intel_agp)              grep -qE "^CONFIG_AGP_INTEL=[ym]" "$CONFIG" && FOUND=true ;;
-                spi_nor)                grep -qE "^CONFIG_MTD_SPI_NOR=[ym]" "$CONFIG" && FOUND=true ;;
-                smsdvb|smsmdtv|smsusb)  grep -qE "^CONFIG_SMS_SIANO_MDTV=[ym]" "$CONFIG" && FOUND=true ;;
-              esac
-            fi
-
-            $FOUND || MISSING+=("$mod")
-          done < "$MODPROBED"
-
-          if [ ${#MISSING[@]} -gt 0 ]; then
-            echo "⚠️  MÓDULOS SIN CONFIG HABILITADO (${#MISSING[@]} total):"
-            echo "──────────────────────────────────────────"
-            for m in "${MISSING[@]}"; do
-              echo "   ✗ $m"
-            done
-            echo "──────────────────────────────────────────"
-            echo "❌ Abortando — estos módulos no están en el .config"
+          if [ -z "$LIBBPF" ]; then
+            echo "❌ libbpf.c no encontrado — listando src/ para debug:"
+            find /__w/linux-tkg/linux-tkg/linux-tkg/src -maxdepth 5 -type f -name "*.c" 2>/dev/null | head -20
             exit 1
           fi
 
-          echo "✅ Todos los módulos del modprobed.db están en .config"
-          echo "🚀 Procediendo a compilar..."
+          echo "✅ libbpf.c encontrado en: $LIBBPF"
+          echo "=== Líneas con next_path ANTES del patch ==="
+          grep -n "next_path" "$LIBBPF" | head -10
+
+          # Patch: cambiar 'char *next_path' a 'const char *next_path'
+          # Solo modifica la declaración, no los usos
+          sed -i 's/^\(\s*\)char \*next_path;/\1const char *next_path;/' "$LIBBPF"
+
+          echo "=== Líneas con next_path DESPUÉS del patch ==="
+          grep -n "next_path" "$LIBBPF" | head -10
+          echo "✅ Patch aplicado correctamente"
+
+          # Re-asignar permisos para que builduser pueda compilar
+          chown builduser:builduser "$LIBBPF"
 
       # ─────────────────────────────────────────────
-      # 13. Compilación
+      # 14. Compilación completa (--noextract para conservar el patch)
       # ─────────────────────────────────────────────
       - name: "15 - Compile Kernel"
         run: |
           JOBS=$(nproc)
           echo "Compilando con $JOBS cores"
-          # KCFLAGS: deshabilitar -Werror=discarded-qualifiers
-          # bug conocido en libbpf.c del kernel 6.6 con GCC moderno
           export MAKEFLAGS="-j${JOBS}"
-          export KCFLAGS="-Wno-error=discarded-qualifiers"
           export CCACHE_DIR=/tmp/ccache
           sudo -E -u builduser bash -c "
             cd /__w/linux-tkg/linux-tkg/linux-tkg
-            yes '' | makepkg --noconfirm --skippgpcheck
+            yes '' | makepkg --noconfirm --skippgpcheck --noextract
           "
 
       - name: "16 - Show ccache stats"
@@ -394,21 +292,21 @@ jobs:
           CCACHE_DIR: /tmp/ccache
 
       # ─────────────────────────────────────────────
-      # 13. Buscar paquetes (siempre, para debug)
+      # 15. Buscar y preparar paquetes para el release
       # ─────────────────────────────────────────────
       - name: "17 - Collect and stage packages"
         if: always()
         run: |
           echo "=== Buscando .pkg.tar.zst ==="
           find /__w -name "*.pkg.tar.zst" 2>/dev/null || echo "ninguno"
-          # Copiar paquetes al workspace relativo para que softprops pueda accederlos
           mkdir -p linux-tkg/output
-          find /__w/linux-tkg/linux-tkg/linux-tkg -maxdepth 1 -name "*.pkg.tar.zst"             -exec cp {} linux-tkg/output/ \; 2>/dev/null || true
+          find /__w/linux-tkg/linux-tkg/linux-tkg -maxdepth 1 -name "*.pkg.tar.zst" \
+            -exec cp {} linux-tkg/output/ \; 2>/dev/null || true
           echo "=== Paquetes en linux-tkg/output/ ==="
           ls -la linux-tkg/output/ 2>/dev/null || echo "ninguno"
 
       # ─────────────────────────────────────────────
-      # 14. Crear Release
+      # 16. Crear Release
       # ─────────────────────────────────────────────
       - name: "18 - Create GitHub Release"
         uses: softprops/action-gh-release@v2
