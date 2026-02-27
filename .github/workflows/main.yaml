@@ -32,33 +32,41 @@ jobs:
       - name: 4. Clonar XanMod 5.15
         run: git clone --depth 1 --branch 5.15 https://github.com/xanmod/linux xanmod
 
-      - name: 5. Configuración Maestra (Video, WiFi y Rendimiento)
+      - name: 5. Configuración Maestra Unificada (Video, WiFi, Silvermont)
         run: |
           cd xanmod
-          # 1. Base del sistema
+          # 1. Generar base y aplicar modprobed.db
           make x86_64_defconfig
           
-          # 2. Inyectar soporte básico ANTES de optimizar (para que localmodconfig no los borre)
-          KCONFIG="./scripts/config"
-          $KCONFIG --enable CONFIG_WLAN
-          $KCONFIG --enable CONFIG_PCI
+          # Habilitamos WLAN antes para que localmodconfig no ignore los drivers de red
+          ./scripts/config --enable CONFIG_NETDEVICES
+          ./scripts/config --enable CONFIG_WLAN
+          
           LSMOD=$GITHUB_WORKSPACE/modprobed.db make localmodconfig
           
+          # Definir herramienta de configuración
           KCONFIG="./scripts/config"
 
-          # --- PRIORIDAD 1: RED (Las llaves maestras primero) ---
-          $KCONFIG --enable CONFIG_NETDEVICES
-          $KCONFIG --enable CONFIG_RFKILL
+          # --- [WIFI Y RED] Soporte para RTL8723BE (Legacy y Moderno) ---
+          $KCONFIG --enable CONFIG_PCI
           $KCONFIG --enable CONFIG_CFG80211
           $KCONFIG --enable CONFIG_MAC80211
+          $KCONFIG --enable CONFIG_WLAN_VENDOR_REALTEK
+          # Driver Moderno (Recomendado)
           $KCONFIG --enable CONFIG_RTW88
-          $KCONFIG --enable CONFIG_RTW88_CORE
           $KCONFIG --enable CONFIG_RTW88_PCI
           $KCONFIG --module CONFIG_RTW88_8723be
+          # Driver Legacy (El que aparece en tu lista)
+          $KCONFIG --enable CONFIG_RTL_CARDS
+          $KCONFIG --module CONFIG_RTL8723BE
+          $KCONFIG --module CONFIG_RTL8723_COMMON
+          $KCONFIG --enable CONFIG_RTLWIFI_PCI
+          # Ethernet y Bus
           $KCONFIG --enable CONFIG_R8169
-          $KCONFIG --enable CONFIG_REALTEK_PHY
+          $KCONFIG --enable CONFIG_RTSX_USB
+          $KCONFIG --enable CONFIG_RTSX_USB_SDMMC
 
-          # --- PRIORIDAD 2: VIDEO Y CONSOLA (Silvermont graphics) ---
+          # --- [VIDEO Y CONSOLA] Fix pantalla gris ---
           $KCONFIG --enable CONFIG_FB
           $KCONFIG --enable CONFIG_VT
           $KCONFIG --enable CONFIG_VT_CONSOLE
@@ -69,40 +77,36 @@ jobs:
           $KCONFIG --enable CONFIG_FONT_8x16
           $KCONFIG --enable CONFIG_FONT_SUPPORT
 
-          # --- PRIORIDAD 3: OPTIMIZACIÓN SILVERMONT Y BOOT ---
+          # --- [SILVERMONT] Optimización CPU N2807 ---
           $KCONFIG --disable CONFIG_GENERIC_CPU
           $KCONFIG --enable CONFIG_MSILVERMONT
           $KCONFIG --enable CONFIG_X86_INTEL_PSTATE
           $KCONFIG --enable CONFIG_INTEL_IDLE
           $KCONFIG --enable CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE
-          $KCONFIG --enable CONFIG_IOSF_MBI
-          $KCONFIG --enable CONFIG_INTEL_GTT
           $KCONFIG --enable CONFIG_MICROCODE
           $KCONFIG --enable CONFIG_MICROCODE_INTEL
-          
-          # --- PRIORIDAD 4: ZRAM Y RENDIMIENTO XANMOD ---
+
+          # --- [RENDIMIENTO Y BOOT] ZRAM y Latencia ---
           $KCONFIG --enable CONFIG_ZRAM
           $KCONFIG --enable CONFIG_ZSMALLOC
           $KCONFIG --enable CONFIG_CRYPTO_LZ4
           $KCONFIG --enable CONFIG_ZRAM_DEF_COMP_LZ4
           $KCONFIG --enable CONFIG_SCHED_AUTOGROUP
-          $KCONFIG --enable CONFIG_SCHED_MC
           $KCONFIG --set-val CONFIG_HZ 1000
           $KCONFIG --enable CONFIG_HZ_1000
+          $KCONFIG --enable CONFIG_RD_ZSTD
           $KCONFIG --enable CONFIG_ZSTD_COMPRESS
           $KCONFIG --enable CONFIG_ZSTD_DECOMPRESS
-          $KCONFIG --enable CONFIG_RD_ZSTD
 
-          # 2. Aplicar cambios y limpiar inconsistencias
+          # 2. Aplicar y limpiar
           make olddefconfig
 
-          # 3. VERIFICACIÓN DE SEGURIDAD (Si falla, no pierdas tiempo compilando)
-          echo "--- CHEQUEO FINAL DE CONFIGURACIÓN ---"
-          grep "CONFIG_RTW88_8723be=m" .config || (echo "ERROR: WiFi Realtek NO inyectado" && exit 1)
-          grep "CONFIG_DRM_I915=y" .config || (echo "ERROR: Video Intel NO inyectado" && exit 1)
-          grep "CONFIG_ZRAM=y" .config || (echo "ERROR: ZRAM NO inyectada" && exit 1)
-          echo "Todo OK. Iniciando compilación..."
-
+          # 3. VERIFICACIÓN FINAL (Si esto falla, la Action se detiene)
+          echo "--- CHEQUEO DE INTEGRIDAD ---"
+          grep -E "CONFIG_RTW88_8723be=m|CONFIG_RTL8723BE=m" .config || (echo "ERROR: WiFi no inyectado" && exit 1)
+          grep "CONFIG_DRM_I915=y" .config || (echo "ERROR: Video no inyectado" && exit 1)
+          grep "CONFIG_ZRAM=y" .config || (echo "ERROR: ZRAM no inyectada" && exit 1)
+          echo "¡Todo listo! Iniciando compilación..."      
 
       - name: 6. Compilar
         run: |
