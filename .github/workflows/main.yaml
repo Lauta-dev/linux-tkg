@@ -37,29 +37,26 @@ jobs:
           cd xanmod
           make x86_64_defconfig
           
-          # 1. Aplicamos tu dieta de drivers
+          # 1. Aplicamos la dieta (esto borrará cosas que no están en el db)
           LSMOD=$GITHUB_WORKSPACE/modprobed.db make localmodconfig
           
-          # 2. FORZAMOS VIDEO E INTERFAZ (Modo impositivo)
-          # Esto asegura que el driver no sea un módulo (.ko) sino que esté dentro del vmlinuz
-          scripts/config --enable CONFIG_VT
-          scripts/config --enable CONFIG_VT_CONSOLE
-          scripts/config --enable CONFIG_FRAMEBUFFER_CONSOLE
-          scripts/config --enable CONFIG_FB_EFI
-          scripts/config --enable CONFIG_DRM_I915
-          scripts/config --enable CONFIG_DRM_FBDEV_EMULATION
+          # 2. RE-INYECCIÓN FORZADA (Esto sobreescribe cualquier borrado)
+          # Usamos un bloque de texto al final del archivo para que mande sobre lo anterior
+          cat <<EOF >> .config
+          CONFIG_VT=y
+          CONFIG_VT_CONSOLE=y
+          CONFIG_DRM_I915=y
+          CONFIG_FRAMEBUFFER_CONSOLE=y
+          CONFIG_FB_EFI=y
+          CONFIG_DRM_FBDEV_EMULATION=y
+          CONFIG_MSILVERMONT=y
+          CONFIG_MATOM=n
+          CONFIG_GENERIC_CPU=n
+          EOF
           
-          # 3. OPTIMIZACIONES SILVERMONT
-          scripts/config --enable CONFIG_MATOM
-          scripts/config --enable CONFIG_PREEMPT
-          scripts/config --disable CONFIG_X86_5LEVEL
-          scripts/config --enable CONFIG_KERNEL_LZ4
-          
-          # 4. TRUCO FINAL: Aseguramos 'y' (Built-in) manualmente
-          # A veces scripts/config no sobreescribe módulos ya marcados por localmodconfig
-          sed -i 's/CONFIG_DRM_I915=m/CONFIG_DRM_I915=y/' .config
-          sed -i 's/CONFIG_FB_EFI=m/CONFIG_FB_EFI=y/' .config
-          sed -i 's/CONFIG_FRAMEBUFFER_CONSOLE=m/CONFIG_FRAMEBUFFER_CONSOLE=y/' .config
+          # 3. Limpiar inconsistencias y fijar la optimización Silvermont
+          scripts/config --disable CONFIG_GENERIC_CPU
+          scripts/config --enable CONFIG_MSILVERMONT
           
           make olddefconfig
 
