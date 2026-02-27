@@ -32,102 +32,73 @@ jobs:
       - name: 4. Clonar XanMod 5.15
         run: git clone --depth 1 --branch 5.15 https://github.com/xanmod/linux xanmod
 
-      - name: 5. Configuración Forzada con Scripts
+      - name: 5. Configuración Maestra (Video, WiFi y Rendimiento)
         run: |
           cd xanmod
+          # 1. Base del sistema
           make x86_64_defconfig
           LSMOD=$GITHUB_WORKSPACE/modprobed.db make localmodconfig
           
-          # Herramienta mágica del kernel para evitar que olddefconfig borre cosas
           KCONFIG="./scripts/config"
-          
-          # --- VIDEO Y CONSOLA (Lo que te faltaba) ---
+
+          # --- PRIORIDAD 1: RED (Las llaves maestras primero) ---
+          $KCONFIG --enable CONFIG_NETDEVICES
+          $KCONFIG --enable CONFIG_WLAN
+          $KCONFIG --enable CONFIG_RFKILL
+          $KCONFIG --enable CONFIG_PCI
+          $KCONFIG --enable CONFIG_CFG80211
+          $KCONFIG --enable CONFIG_MAC80211
+          $KCONFIG --enable CONFIG_RTW88
+          $KCONFIG --enable CONFIG_RTW88_CORE
+          $KCONFIG --enable CONFIG_RTW88_PCI
+          $KCONFIG --module CONFIG_RTW88_8723be
+          $KCONFIG --enable CONFIG_R8169
+          $KCONFIG --enable CONFIG_REALTEK_PHY
+
+          # --- PRIORIDAD 2: VIDEO Y CONSOLA (Silvermont graphics) ---
           $KCONFIG --enable CONFIG_FB
           $KCONFIG --enable CONFIG_VT
           $KCONFIG --enable CONFIG_VT_CONSOLE
           $KCONFIG --enable CONFIG_FRAMEBUFFER_CONSOLE
-          $KCONFIG --enable CONFIG_DRM_FBDEV_EMULATION
           $KCONFIG --enable CONFIG_DRM_I915
+          $KCONFIG --enable CONFIG_DRM_FBDEV_EMULATION
           $KCONFIG --enable CONFIG_FB_EFI
           $KCONFIG --enable CONFIG_FONT_8x16
           $KCONFIG --enable CONFIG_FONT_SUPPORT
-          
-          # --- BOOT Y SISTEMA ---
-          $KCONFIG --enable CONFIG_EFI_STUB
-          $KCONFIG --enable CONFIG_DEVTMPFS
-          $KCONFIG --enable CONFIG_DEVTMPFS_MOUNT
-          $KCONFIG --enable CONFIG_BLK_DEV_INITRD
-          $KCONFIG --enable CONFIG_RD_ZSTD
-          $KCONFIG --enable CONFIG_UNIX
-          $KCONFIG --enable CONFIG_SHMEM
-          
-          # --- HARDWARE SILVERMONT ---
+
+          # --- PRIORIDAD 3: OPTIMIZACIÓN SILVERMONT Y BOOT ---
           $KCONFIG --disable CONFIG_GENERIC_CPU
           $KCONFIG --enable CONFIG_MSILVERMONT
+          $KCONFIG --enable CONFIG_X86_INTEL_PSTATE
+          $KCONFIG --enable CONFIG_INTEL_IDLE
+          $KCONFIG --enable CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE
           $KCONFIG --enable CONFIG_IOSF_MBI
           $KCONFIG --enable CONFIG_INTEL_GTT
           $KCONFIG --enable CONFIG_MICROCODE
           $KCONFIG --enable CONFIG_MICROCODE_INTEL
           
-          # FIX RENDIMIENTO
+          # --- PRIORIDAD 4: ZRAM Y RENDIMIENTO XANMOD ---
           $KCONFIG --enable CONFIG_ZRAM
           $KCONFIG --enable CONFIG_ZSMALLOC
           $KCONFIG --enable CONFIG_CRYPTO_LZ4
           $KCONFIG --enable CONFIG_ZRAM_DEF_COMP_LZ4
           $KCONFIG --enable CONFIG_SCHED_AUTOGROUP
-          
-          # 1. Habilitar el soporte inalámbrico base (Indispensable)
-          $KCONFIG --enable CONFIG_NETDEVICES
-          $KCONFIG --enable CONFIG_WLAN
-          $KCONFIG --enable CONFIG_RFKILL
-
-          # 2. Habilitar el soporte de Realtek moderno (Jerarquía)
-          $KCONFIG --enable CONFIG_RTW88
-          $KCONFIG --module CONFIG_RTW88_8723be
-
-          # 3. Soporte de Bus (Para que el kernel vea la placa PCI)
-          $KCONFIG --enable CONFIG_PCI
-          $KCONFIG --enable CONFIG_MAC80211
-          
-          # FIX DRACUT ERROR (ZSTD)
-          $KCONFIG --enable CONFIG_ZSTD_COMPRESS
-          $KCONFIG --enable CONFIG_ZSTD_DECOMPRESS
-
-          # --- RENDIMIENTO Y CPU SILVERMONT ---
-          $KCONFIG --enable CONFIG_X86_INTEL_PSTATE
-          $KCONFIG --enable CONFIG_INTEL_IDLE
-          $KCONFIG --enable CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE
           $KCONFIG --enable CONFIG_SCHED_MC
           $KCONFIG --set-val CONFIG_HZ 1000
           $KCONFIG --enable CONFIG_HZ_1000
+          $KCONFIG --enable CONFIG_ZSTD_COMPRESS
+          $KCONFIG --enable CONFIG_ZSTD_DECOMPRESS
+          $KCONFIG --enable CONFIG_RD_ZSTD
 
-          # --- FIX ZRAM (Para que no se trabe al bootear) ---
-          $KCONFIG --enable CONFIG_ZRAM
-          $KCONFIG --enable CONFIG_ZSMALLOC
-          $KCONFIG --enable CONFIG_CRYPTO_LZ4
-          $KCONFIG --enable CONFIG_ZRAM_DEF_COMP_LZ4
-          # 1. Las LLAVES MAESTRAS (Sin esto no hay Wi-Fi)
-          $KCONFIG --enable CONFIG_NETDEVICES
-          $KCONFIG --enable CONFIG_WLAN
-          $KCONFIG --enable CONFIG_PCI
-          $KCONFIG --enable CONFIG_MAC80211
-          $KCONFIG --enable CONFIG_CFG80211
-
-          # 2. El soporte para REALTEK 88 (La familia de tu placa)
-          $KCONFIG --enable CONFIG_RTW88
-          $KCONFIG --enable CONFIG_RTW88_CORE
-          $KCONFIG --enable CONFIG_RTW88_PCI
-
-          # 3. El driver ESPECÍFICO para tu RTL8723BE
-          $KCONFIG --module CONFIG_RTW88_8723be
-
-          # Aplicar y limpiar
+          # 2. Aplicar cambios y limpiar inconsistencias
           make olddefconfig
-          
-          # VERIFICACIÓN EN EL LOG (Para que veas si funcionó antes de compilar)
-          echo "--- VERIFICACIÓN DE SEGURIDAD ---"
-          grep "CONFIG_FRAMEBUFFER_CONSOLE" .config || echo "ERROR: No se activó la consola"
-          grep "CONFIG_DRM_I915" .config || echo "ERROR: No se activó el driver de video"
+
+          # 3. VERIFICACIÓN DE SEGURIDAD (Si falla, no pierdas tiempo compilando)
+          echo "--- CHEQUEO FINAL DE CONFIGURACIÓN ---"
+          grep "CONFIG_RTW88_8723be=m" .config || (echo "ERROR: WiFi Realtek NO inyectado" && exit 1)
+          grep "CONFIG_DRM_I915=y" .config || (echo "ERROR: Video Intel NO inyectado" && exit 1)
+          grep "CONFIG_ZRAM=y" .config || (echo "ERROR: ZRAM NO inyectada" && exit 1)
+          echo "Todo OK. Iniciando compilación..."
 
 
       - name: 6. Compilar
