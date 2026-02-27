@@ -19,7 +19,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y git build-essential bc bison flex libelf-dev libssl-dev make ccache dwarves libncurses-dev xz-utils kmod lz4
-          # Forzamos la creación del directorio para que el Cache no de error
           mkdir -p ~/.ccache
           echo "max_size = 2.0G" > ~/.ccache/ccache.conf
 
@@ -33,25 +32,31 @@ jobs:
       - name: 4. Clonar XanMod 5.15
         run: git clone --depth 1 --branch 5.15 https://github.com/xanmod/linux xanmod
 
-      - name: 5. Aplicar Modprobed-db y Optimización
+      - name: 5. Aplicar Modprobed-db y Hard-Coding de Drivers
         run: |
           cd xanmod
           make x86_64_defconfig
-          # Usamos la ruta absoluta para evitar errores de validación
           LSMOD=$GITHUB_WORKSPACE/modprobed.db make localmodconfig
           
+          # --- FORZAR VIDEO INTEL (BUILT-IN) ---
+          scripts/config --enable CONFIG_DRM_I915
+          scripts/config --enable CONFIG_DRM_I915_GVT
+          scripts/config --enable CONFIG_FB_EFI
+          scripts/config --enable CONFIG_FRAMEBUFFER_CONSOLE
+          scripts/config --enable CONFIG_DRM_FBDEV_EMULATION
+          
+          # --- FORZAR DISCO Y TECLADO (EVITAR KERNEL PANIC) ---
+          scripts/config --enable CONFIG_EXT4_FS
+          scripts/config --enable CONFIG_INPUT_KEYBOARD
+          scripts/config --enable CONFIG_HID_GENERIC
+          
+          # --- OPTIMIZACIÓN SILVERMONT ---
           scripts/config --enable CONFIG_MATOM
           scripts/config --enable CONFIG_PREEMPT
           scripts/config --disable CONFIG_DEBUG_INFO
           scripts/config --disable CONFIG_KERNEL_GZIP
           scripts/config --disable CONFIG_KERNEL_ZSTD
           scripts/config --enable CONFIG_KERNEL_LZ4
-          # Video Intel para Celeron Silvermont
-          scripts/config --enable CONFIG_DRM_I915
-          scripts/config --enable CONFIG_DRM_I915_GVT
-          scripts/config --enable CONFIG_DRM_I915_GVT_KVMGT
-          scripts/config --enable CONFIG_FB_EFI
-          scripts/config --enable CONFIG_FRAMEBUFFER_CONSOLE
           
           make olddefconfig
 
@@ -65,29 +70,20 @@ jobs:
       - name: 7. Empaquetado
         run: |
           mkdir -p output/boot
-          cp xanmod/arch/x86/boot/bzImage output/boot/vmlinuz-515-xanmod-lz4
+          cp xanmod/arch/x86/boot/bzImage output/boot/vmlinuz-515-xanmod-silvermont
           cd xanmod
           sudo make INSTALL_MOD_PATH=../output modules_install
           cd ../output
           sudo rm -f lib/modules/*/build lib/modules/*/source
           tar -cvzf ../kernel-515-slim.tar.gz .
 
-      - name: 8. Crear Release y subir README
+      - name: 8. Crear Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v5.15-slim-${{ github.run_number }}
           name: XanMod 5.15 Slim (Silvermont N2807)
           body: |
-            ### 💻 Build Specs
-            ```text
-            Arquitectura:                        x86_64
-            Nombre del modelo:                   Intel(R) Celeron(R) CPU N2807 @ 1.58GHz
-            CPU MHz máx.:                        2165,8000
-            Caché L2:                            1 MiB (1 instancia)
-            ```
-            ### 🛠️ Optimizaciones
-            - **Compresión:** LZ4
-            - **Micro-Arquitectura:** Silvermont (MATOM)
-            - **Preemption:** Full (Real-time feel)
-            - **Modprobed-db:** Aplicado con éxito.
+            Kernel XanMod 5.15 con drivers de video Intel i915 integrados.
+            - Compresión: LZ4
+            - Optimizado para Celeron N2807
           files: kernel-515-slim.tar.gz
