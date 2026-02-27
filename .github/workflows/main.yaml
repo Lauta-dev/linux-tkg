@@ -1,72 +1,76 @@
-name: linux-5.15-tkg-silvermont
+name: xanmod-5.15-silvermont-slim
 
 on:
   push:
-    branches: 
-      - main
-      - 5-15
+    branches: [ 5-15-xm ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: 1. Checkout
+      - name: 1. Checkout del repositorio
         uses: actions/checkout@v4
 
-      - name: 2. Cache de Kernel y Ccache
-        uses: actions/cache@v4
-        with:
-          path: |
-            linux-tkg/linux-kernel.git
-            linux-tkg/linux-src-git
-            .ccache
-          # Cambiamos la clave a 5.15 para resetear el cache
-          key: linux-5.15-silvermont-${{ runner.os }}-${{ github.sha }}
-          restore-keys: |
-            linux-5.15-silvermont-${{ runner.os }}-
-
-      - name: 3. Preparar Base de Datos (Fake LSMOD)
-        run: |
-          awk '{print $1 " 0 0"}' modprobed.db > /home/runner/modprobed.db
-
-      - name: 4. Instalar Dependencias
+      - name: 2. Instalar dependencias
         run: |
           sudo apt-get update
           sudo apt-get install -y git build-essential bc bison flex libelf-dev libssl-dev make ccache dwarves libncurses-dev xz-utils kmod
 
-      - name: 5. Ejecutar Linux-TKG
-        run: |
-          if [ ! -d "linux-tkg" ]; then
-            git clone --depth 1 https://github.com/Frogging-Family/linux-tkg.git
-          fi
-          
-          cp customization.cfg linux-tkg/customization.cfg
-          
-          cd linux-tkg
-          # Forzamos PATH para ccache
-          export PATH="/usr/lib/ccache:$PATH"
-          yes "" | ./install.sh install
+      - name: 3. Configurar Ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-xanmod-515-${{ github.sha }}
+          restore-keys: ccache-xanmod-515-
 
-      - name: 6. Empaquetado de Binarios
+      - name: 4. Clonar XanMod 5.15 (Instrucción de usuario)
+        run: |
+          git clone --depth 1 --branch 5.15 https://github.com/xanmod/linux xanmod
+
+      - name: 5. Aplicar Modprobed-db y Optimización
+        run: |
+          cd xanmod
+          # Usamos la config base de XanMod
+          make x86_64_defconfig
+          
+          # Inyectamos tu modprobed.db para dejarlo "slim"
+          # El archivo debe estar en la raíz de tu repo
+          LSMOD=../modprobed.db make localmodconfig
+          
+          # Forzamos optimización para tu Celeron Silvermont
+          scripts/config --enable CONFIG_MATOM
+          # Quitamos basura de debug para reducir peso
+          scripts/config --disable CONFIG_DEBUG_INFO
+          scripts/config --disable CONFIG_DEBUG_KERNEL
+          # Aseguramos Preempt Full para respuesta rápida en juegos
+          scripts/config --enable CONFIG_PREEMPT
+          # Sincronizamos la config
+          make olddefconfig
+
+      - name: 6. Compilar (Usando Ccache)
+        run: |
+          cd xanmod
+          export PATH="/usr/lib/ccache:$PATH"
+          make -j$(nproc) bzImage modules
+
+      - name: 7. Empaquetado para Dracut/Systemd-boot
         run: |
           mkdir -p output/boot
+          # Nombre claro para tu entrada de systemd-boot
+          cp xanmod/arch/x86/boot/bzImage output/boot/vmlinuz-515-xanmod-silvermont
           
-          # Cambiamos el nombre del vmlinuz para diferenciarlo del 6.6
-          cp linux-tkg/linux-src-git/arch/x86/boot/bzImage output/boot/vmlinuz-linux515-tkg-silvermont
+          cd xanmod
+          sudo make INSTALL_MOD_PATH=../output modules_install
           
-          cd linux-tkg/linux-src-git
-          sudo make INSTALL_MOD_PATH=../../output modules_install
-          
-          cd ../../output
+          cd ../output
+          # Limpiamos enlaces simbólicos rotos antes de comprimir
           sudo rm -f lib/modules/*/build lib/modules/*/source
-          # Nombre del comprimido actualizado
-          sudo tar -cvzf ../kernel-515-silvermont.tar.gz .
-          
-          sudo chown $USER:$USER ../kernel-515-silvermont.tar.gz
+          sudo tar -cvzf ../kernel-515-xanmod-slim.tar.gz .
+          sudo chown $USER:$USER ../kernel-515-xanmod-slim.tar.gz
 
-      - name: 7. Subir Artifact
+      - name: 8. Subir Kernel resultante
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-tkg-5.15-silvermont
-          path: kernel-515-silvermont.tar.gz
+          name: kernel-5.15-xanmod-slim
+          path: kernel-515-xanmod-slim.tar.gz
