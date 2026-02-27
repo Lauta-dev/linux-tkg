@@ -377,8 +377,10 @@ jobs:
         run: |
           JOBS=$(nproc)
           echo "Compilando con $JOBS cores"
-          # Exportar variables antes del sudo para evitar problemas de quoting
+          # KCFLAGS: deshabilitar -Werror=discarded-qualifiers
+          # bug conocido en libbpf.c del kernel 6.6 con GCC moderno
           export MAKEFLAGS="-j${JOBS}"
+          export KCFLAGS="-Wno-error=discarded-qualifiers"
           export CCACHE_DIR=/tmp/ccache
           sudo -E -u builduser bash -c "
             cd /__w/linux-tkg/linux-tkg/linux-tkg
