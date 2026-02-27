@@ -260,10 +260,18 @@ jobs:
       # ─────────────────────────────────────────────
       - name: "13b - Upload .config artifact"
         if: always()
+        run: |
+          # Copiar .config a un path accesible por upload-artifact
+          mkdir -p /tmp/kernel-config
+          cp "$KERNEL_CONFIG" /tmp/kernel-config/kernel.config 2>/dev/null             || echo "⚠️ No se pudo copiar el .config"
+          ls -la /tmp/kernel-config/ || true
+
+      - name: "13c - Upload .config"
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: kernel-config-${{ steps.tag.outputs.tag }}
-          path: /__w/linux-tkg/linux-tkg/linux-tkg/src/linux-src-git/.config
+          path: /tmp/kernel-config/kernel.config
           if-no-files-found: warn
 
       - name: "14 - Verify modprobed.db modules in .config"
