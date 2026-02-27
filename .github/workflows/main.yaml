@@ -38,7 +38,22 @@ jobs:
           path: 'myrepo'
 
       # ─────────────────────────────────────────────
-      # 2. Cache de paquetes de pacman
+      # 2. Debug: mostrar paths reales del container
+      # ─────────────────────────────────────────────
+      - name: Debug paths
+        run: |
+          echo "github.workspace = ${{ github.workspace }}"
+          echo "PWD = $(pwd)"
+          echo "HOME = $HOME"
+          echo "=== Contenido de PWD ==="
+          ls -la
+          echo "=== Contenido de myrepo ==="
+          ls -la myrepo/ 2>/dev/null || echo "myrepo/ no encontrado desde PWD"
+          echo "=== Buscando modprobed.db ==="
+          find / -name "modprobed.db" 2>/dev/null || echo "No encontrado"
+
+      # ─────────────────────────────────────────────
+      # 3. Cache de paquetes de pacman
       # ─────────────────────────────────────────────
       - name: Cache pacman packages
         uses: actions/cache@v4
@@ -49,7 +64,7 @@ jobs:
             pacman-
 
       # ─────────────────────────────────────────────
-      # 3. Dependencias del sistema
+      # 4. Dependencias del sistema (ccache incluido)
       # ─────────────────────────────────────────────
       - name: Install System Tools
         run: |
@@ -58,10 +73,11 @@ jobs:
           pacman -Syu --noconfirm --needed \
             git base-devel sudo \
             xmlto kmod inetutils bc libelf \
-            python pahole cpio perl tar xz zstd
+            python pahole cpio perl tar xz zstd \
+            ccache
 
       # ─────────────────────────────────────────────
-      # 4. Checkout de Frogging-Family/linux-tkg
+      # 5. Checkout de Frogging-Family/linux-tkg
       # ─────────────────────────────────────────────
       - name: Checkout Frogging-Family/linux-tkg
         uses: actions/checkout@v4
@@ -70,38 +86,36 @@ jobs:
           path: 'linux-tkg'
 
       # ─────────────────────────────────────────────
-      # 5. Cache del tarball del kernel 6.6
-      #    TKG descarga linux-6.6.tar.xz (~130 MB) en src/
-      #    Si el cache existe, TKG lo detecta y no re-descarga.
+      # 6. Cache del tarball del kernel 6.6
       # ─────────────────────────────────────────────
       - name: Cache kernel source tarball
-        id: cache-kernel
         uses: actions/cache@v4
         with:
-          path: ${{ github.workspace }}/linux-tkg/src
+          path: linux-tkg/src
           key: kernel-src-6.6-${{ hashFiles('myrepo/customization.cfg') }}
           restore-keys: |
             kernel-src-6.6-
 
       # ─────────────────────────────────────────────
-      # 6. Setup: modprobed.db + customization.cfg
+      # 7. Setup: modprobed.db + customization.cfg
+      #    Usamos paths relativos desde PWD para evitar
+      #    problemas con github.workspace en containers.
       # ─────────────────────────────────────────────
       - name: Setup modprobed.db and config
         run: |
           mkdir -p /home/runner/
-          cp ${{ github.workspace }}/myrepo/modprobed.db /home/runner/modprobed.db
-          cp ${{ github.workspace }}/myrepo/customization.cfg \
-             ${{ github.workspace }}/linux-tkg/customization.cfg
+          cp myrepo/modprobed.db /home/runner/modprobed.db
+          cp myrepo/customization.cfg linux-tkg/customization.cfg
+          echo "✅ modprobed.db copiado a /home/runner/"
+          echo "✅ customization.cfg copiado a linux-tkg/"
 
       # ─────────────────────────────────────────────
-      # 7. Enforce critical configs
-      #    Genera config-fragment.cfg SIN indentación para que
-      #    merge_config.sh de linux-tkg lo parsee correctamente.
+      # 8. Enforce critical configs
       # ─────────────────────────────────────────────
       - name: Enforce critical configs
         run: |
-          mkdir -p ${{ github.workspace }}/linux-tkg/linux66-tkg-userpatches
-          FRAG="${{ github.workspace }}/linux-tkg/linux66-tkg-userpatches/config-fragment.cfg"
+          mkdir -p linux-tkg/linux66-tkg-userpatches
+          FRAG="linux-tkg/linux66-tkg-userpatches/config-fragment.cfg"
 
           printf '%s\n' \
             '# Video / pantalla gris fix' \
@@ -135,43 +149,54 @@ jobs:
             'CONFIG_ZRAM_DEF_COMP_LZ4=y' \
             > "$FRAG"
 
-          echo "=== config-fragment.cfg generado ==="
+          echo "=== config-fragment.cfg ==="
           cat "$FRAG"
 
       # ─────────────────────────────────────────────
-      # 8. Prepare: descargar source y generar .config
-      #    Usamos makepkg --nobuild para que TKG ejecute
-      #    solo las fases fetch + prepare() sin compilar.
-      #    Esto genera el .config que verificamos a continuación.
+      # 9. Cache ccache
+      # ─────────────────────────────────────────────
+      - name: Cache ccache objects
+        uses: actions/cache@v4
+        with:
+          path: /root/.ccache
+          key: ccache-kernel-6.6-${{ hashFiles('myrepo/customization.cfg') }}-${{ github.sha }}
+          restore-keys: |
+            ccache-kernel-6.6-${{ hashFiles('myrepo/customization.cfg') }}-
+            ccache-kernel-6.6-
+
+      - name: Configure ccache
+        run: |
+          ccache --max-size=5G
+          ccache --zero-stats
+          echo "PATH=/usr/lib/ccache/bin:$PATH" >> $GITHUB_ENV
+          echo "CCACHE_DIR=/root/.ccache" >> $GITHUB_ENV
+
+      # ─────────────────────────────────────────────
+      # 10. Prepare: fetch + generate .config (sin compilar)
       # ─────────────────────────────────────────────
       - name: Prepare kernel source and generate .config
         run: |
-          cd ${{ github.workspace }}/linux-tkg
-
-          # makepkg --nobuild ejecuta: fetch de fuentes + prepare()
-          # prepare() es donde TKG aplica patches, modprobed.db
-          # y config-fragment.cfg — sin llegar a make
+          cd linux-tkg
           yes "" | makepkg --nobuild --noconfirm --skippgpcheck 2>&1 || true
 
-          # Verificar que el .config fue generado
           CONFIG=$(find src -name ".config" 2>/dev/null | head -1)
           if [ -z "$CONFIG" ]; then
             echo "❌ ERROR: makepkg --nobuild no generó el .config"
-            echo "Contenido de src/:"
+            echo "=== Contenido de src/ ==="
             ls -la src/ 2>/dev/null || echo "src/ no existe"
             exit 1
           fi
           echo "✅ .config generado en: $CONFIG"
         env:
           MAKEFLAGS: "-j$(nproc)"
+          CCACHE_DIR: /root/.ccache
 
       # ─────────────────────────────────────────────
-      # 9. Verificar módulos del modprobed.db en el .config
-      #    ANTES de compilar — falla rápido si falta algo.
+      # 11. Verificar módulos ANTES de compilar
       # ─────────────────────────────────────────────
       - name: Verify modprobed.db modules in .config
         run: |
-          CONFIG=$(find ${{ github.workspace }}/linux-tkg/src -name ".config" 2>/dev/null | head -1)
+          CONFIG=$(find linux-tkg/src -name ".config" 2>/dev/null | head -1)
 
           if [ -z "$CONFIG" ]; then
             echo "❌ ERROR: No se encontró .config"
@@ -179,8 +204,6 @@ jobs:
           fi
 
           echo "✅ .config: $CONFIG"
-          echo ""
-
           MODPROBED="/home/runner/modprobed.db"
           MISSING=()
 
@@ -193,55 +216,25 @@ jobs:
           done < "$MODPROBED"
 
           if [ ${#MISSING[@]} -gt 0 ]; then
-            echo "⚠️  MÓDULOS FALTANTES EN .config (${#MISSING[@]} total):"
+            echo "⚠️  MÓDULOS FALTANTES (${#MISSING[@]} total):"
             echo "──────────────────────────────────────────"
             for m in "${MISSING[@]}"; do
               echo "   ✗ $m"
             done
             echo "──────────────────────────────────────────"
-            echo "❌ Abortando — corregí el modprobed.db o customization.cfg antes de recompilar"
+            echo "❌ Abortando — corregí modprobed.db o customization.cfg"
             exit 1
           fi
 
-          echo "✅ Todos los módulos del modprobed.db están presentes en .config"
+          echo "✅ Todos los módulos del modprobed.db presentes en .config"
           echo "🚀 Procediendo a compilar..."
 
       # ─────────────────────────────────────────────
-      # 10. Cache de objetos de compilación (ccache)
-      #     Reduce drásticamente el tiempo en recompilaciones.
-      #     En la primera run no hay cache — tarda lo mismo.
-      #     En runs siguientes puede bajar de 60 min a 10-15 min.
-      # ─────────────────────────────────────────────
-      - name: Cache ccache objects
-        uses: actions/cache@v4
-        with:
-          path: /root/.ccache
-          key: ccache-kernel-6.6-${{ hashFiles('myrepo/customization.cfg') }}-${{ github.sha }}
-          restore-keys: |
-            ccache-kernel-6.6-${{ hashFiles('myrepo/customization.cfg') }}-
-            ccache-kernel-6.6-
-
-      - name: Install and configure ccache
-        run: |
-          pacman -S --noconfirm --needed ccache
-          ccache --max-size=5G
-          ccache --zero-stats
-          # Agregar ccache al PATH para que make lo use automáticamente
-          echo "PATH=/usr/lib/ccache/bin:$PATH" >> $GITHUB_ENV
-          echo "CCACHE_DIR=/root/.ccache" >> $GITHUB_ENV
-
-      # ─────────────────────────────────────────────
-      # 11. Compilación
-      #     makepkg --noextract reutiliza el source ya preparado
-      #     en el paso anterior, sin re-descargar ni re-patchear.
+      # 12. Compilación
       # ─────────────────────────────────────────────
       - name: Compile Kernel
         run: |
-          cd ${{ github.workspace }}/linux-tkg
-          ls -la
-          chmod +x non-interactive-build.sh
-
-          # --noextract: reutiliza src/ del paso prepare anterior
+          cd linux-tkg
           yes "" | makepkg --noextract --noconfirm --skippgpcheck
         env:
           MAKEFLAGS: "-j$(nproc)"
@@ -252,19 +245,19 @@ jobs:
         run: ccache --show-stats
 
       # ─────────────────────────────────────────────
-      # 12. Buscar paquetes generados (siempre, para debug)
+      # 13. Buscar paquetes (siempre, para debug)
       # ─────────────────────────────────────────────
       - name: Find packages
         if: always()
         run: |
           echo "=== Buscando .pkg.tar.zst ==="
-          find ${{ github.workspace }}/linux-tkg -name "*.pkg.tar.zst" 2>/dev/null
+          find linux-tkg -name "*.pkg.tar.zst" 2>/dev/null
           echo "=== Contenido de non-interactive-build-output ==="
-          ls -la ${{ github.workspace }}/linux-tkg/non-interactive-build-output/ 2>/dev/null \
+          ls -la linux-tkg/non-interactive-build-output/ 2>/dev/null \
             || echo "Directorio no encontrado"
 
       # ─────────────────────────────────────────────
-      # 13. Crear Release
+      # 14. Crear Release
       # ─────────────────────────────────────────────
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -318,7 +311,7 @@ jobs:
             > ⚠️ **Nota:** Este kernel está optimizado específicamente para el N2807.
             > Las mitigaciones de CPU están deshabilitadas para maximizar rendimiento.
             > No instalar en hardware diferente sin recompilar.
-          files: ${{ github.workspace }}/linux-tkg/non-interactive-build-output/*.pkg.tar.zst
+          files: linux-tkg/non-interactive-build-output/*.pkg.tar.zst
           draft: false
           prerelease: false
         env:
