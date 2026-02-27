@@ -70,6 +70,15 @@ jobs:
           CONFIG_MICROCODE_INTEL=y
           CONFIG_MEMFD_CREATE=y
           CONFIG_I2C_DESIGNWARE_PLATFORM=y
+          CONFIG_FB=y
+          CONFIG_VT=y
+          CONFIG_VT_CONSOLE=y
+          CONFIG_FRAMEBUFFER_CONSOLE=y
+          CONFIG_DRM_I915=y
+          CONFIG_DRM_FBDEV_EMULATION=y
+          CONFIG_FB_EFI=y
+          CONFIG_FONT_8x16=y
+          CONFIG_FONT_SUPPORT=y
           EOF
           
           scripts/config --disable CONFIG_GENERIC_CPU
