@@ -39,7 +39,7 @@ jobs:
           LSMOD=$GITHUB_WORKSPACE/modprobed.db make localmodconfig
           
           # Herramienta mágica del kernel para evitar que olddefconfig borre cosas
-          KCONFIG="$KCONFIG"
+          KCONFIG="./scripts/config"
           
           # --- VIDEO Y CONSOLA (Lo que te faltaba) ---
           $KCONFIG --enable CONFIG_FB
