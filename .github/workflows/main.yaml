@@ -77,7 +77,8 @@ jobs:
             ccache wget \
             docbook-xsl patchutils \
             python-sphinx python-sphinx_rtd_theme \
-            graphviz imagemagick
+            graphviz imagemagick \
+            clang llvm lld
 
       # ─────────────────────────────────────────────
       # 5. Checkout de Frogging-Family/linux-tkg
