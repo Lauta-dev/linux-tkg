@@ -1,0 +1,9 @@
+--- a/tools/bpf/resolve_btfids/libbpf/libbpf.c
++++ b/tools/bpf/resolve_btfids/libbpf/libbpf.c
+@@ -11252,7 +11252,7 @@ static int btf_dedup_resolve_fwds(struct btf_dedup *d)
+ int btf__parse_elf_opts(const char *path, struct btf_ext **btf_ext,
+ 			struct btf_parse_opts *opts)
+ {
+-	char *next_path;
++	const char *next_path;
+
