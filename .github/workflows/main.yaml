@@ -215,29 +215,30 @@ jobs:
           lld --version || ld.lld --version
 
       # ─────────────────────────────────────────────
-      # 12. Compilación con Clang y Kernel ON DIET
+      # 12. Compilación con Clang (FORZANDO NO INTERACTIVO)
       # ─────────────────────────────────────────────
       - name: "15 - Compile Kernel"
         run: |
           JOBS=$(nproc)
-          echo "Compilando con $JOBS cores usando Clang + ON DIET"
-          
-          # FORZAMOS las variables aquí para que ignoren el .cfg si hay conflicto
+          # Definimos las variables de TKG para que NO PREGUNTE NADA
+          # _no_confirm es la clave para que no salte lo de "Enable misc additions"
+          export _no_confirm="true"
           export _compiler="clang"
           export _llvm_lto="thin"
           export _kernel_on_diet="true"
-          export _modprobeddb="false" 
+          export _modprobeddb="false"
           export _processor_opt="silvermont"
           export ALL_YES=1
+          
           export MAKEFLAGS="-j${JOBS}"
           export CCACHE_DIR=/tmp/ccache
 
           sudo -E -u builduser bash -c "
             cd /__w/linux-tkg/linux-tkg/linux-tkg
-            # Quitamos el 'yes' pipe porque ALL_YES=1 ya se encarga
-            makepkg --noconfirm --skippgpcheck
+            # El secreto: pasamos las variables de TKG al entorno de makepkg
+            # y usamos --noconfirm de pacman/makepkg
+            _no_confirm=true _compiler=2 _kernel_on_diet=true makepkg --noconfirm --skippgpcheck
           "
-
       - name: "16 - Show ccache stats"
         if: always()
         run: sudo -u builduser ccache --show-stats
