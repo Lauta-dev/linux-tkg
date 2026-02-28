@@ -169,7 +169,8 @@ jobs:
 
       - name: "11 - Configure ccache"
         run: |
-          mkdir -p /tmp/ccache
+          mkdir -p /tmp/ccache/tmp
+          chmod 777 /tmp/ccache/tmp
           ccache --dir /tmp/ccache --max-size=5G
           ccache --dir /tmp/ccache --zero-stats
           echo "PATH=/usr/lib/ccache/bin:$PATH" >> $GITHUB_ENV
@@ -195,6 +196,8 @@ jobs:
             /__w/linux-tkg/linux-tkg/linux-tkg/customization.cfg
           echo "✅ builduser creado"
           grep "_modprobeddb_db_path" /__w/linux-tkg/linux-tkg/linux-tkg/customization.cfg
+          chown -R builduser:builduser /tmp/ccache
+          chmod -R 777 /tmp/ccache
 
       # ─────────────────────────────────────────────
       # 11. Debug workspace
