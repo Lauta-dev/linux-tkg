@@ -247,6 +247,7 @@ jobs:
       #     Error: -Werror=discarded-qualifiers en GCC moderno con kernel 6.6
       # ─────────────────────────────────────────────
       - name: "14 - Patch libbpf.c const qualifier bug"
+        if: false
         run: |
           LIBBPF=$(find /__w/linux-tkg/linux-tkg/linux-tkg/src \
             -path "*/resolve_btfids/libbpf/libbpf.c" 2>/dev/null | head -1)
