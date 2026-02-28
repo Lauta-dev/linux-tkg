@@ -64,7 +64,7 @@ jobs:
             pacman-
 
       # ─────────────────────────────────────────────
-      # 4. Dependencias del sistema (ccache incluido)
+      # 4. Dependencias del sistema (clang incluido)
       # ─────────────────────────────────────────────
       - name: "05 - Install System Tools"
         run: |
@@ -105,10 +105,8 @@ jobs:
       # ─────────────────────────────────────────────
       - name: "08 - Setup modprobed.db and config"
         run: |
-          # Copiar a /home/runner/ (ruta hardcodeada en customization.cfg)
           mkdir -p /home/runner/
           cp myrepo/modprobed.db /home/runner/modprobed.db
-          # Copiar también a $HOME por si TKG lo busca ahí
           mkdir -p $HOME/.config/
           cp myrepo/modprobed.db $HOME/.config/modprobed.db
           cp myrepo/customization.cfg linux-tkg/customization.cfg
@@ -187,18 +185,15 @@ jobs:
           echo "builduser ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builduser
           chown -R builduser:builduser /__w/linux-tkg/linux-tkg/linux-tkg
           chown -R builduser:builduser /__w/linux-tkg/linux-tkg/myrepo
-          # modprobed.db en home de builduser
           cp /home/runner/modprobed.db /home/builduser/modprobed.db
           mkdir -p /home/builduser/.config
           cp /home/runner/modprobed.db /home/builduser/.config/modprobed.db
           chown -R builduser:builduser /home/builduser
-          # Dar acceso a /tmp/ccache al builduser
           mkdir -p /tmp/ccache
           chown -R builduser:builduser /tmp/ccache
-          # Actualizar path en customization.cfg
-          sed -i 's|_modprobeddb_db_path=".*"|_modprobeddb_db_path="/home/builduser/modprobed.db"|' /__w/linux-tkg/linux-tkg/linux-tkg/customization.cfg
+          sed -i 's|_modprobeddb_db_path=".*"|_modprobeddb_db_path="/home/builduser/modprobed.db"|' \
+            /__w/linux-tkg/linux-tkg/linux-tkg/customization.cfg
           echo "✅ builduser creado"
-          echo "✅ modprobed.db → /home/builduser/modprobed.db"
           grep "_modprobeddb_db_path" /__w/linux-tkg/linux-tkg/linux-tkg/customization.cfg
 
       # ─────────────────────────────────────────────
@@ -208,83 +203,26 @@ jobs:
         run: |
           echo "=== PWD ==="
           pwd
-          echo "=== /__w/ ==="
-          ls -la /__w/ 2>/dev/null || echo "no existe"
-          echo "=== /__w/linux-tkg/ ==="
-          ls -la /__w/linux-tkg/ 2>/dev/null || echo "no existe"
-          echo "=== /__w/linux-tkg/linux-tkg/ ==="
-          ls -la /__w/linux-tkg/linux-tkg/ 2>/dev/null || echo "no existe"
           echo "=== /__w/linux-tkg/linux-tkg/linux-tkg/ ==="
           ls -la /__w/linux-tkg/linux-tkg/linux-tkg/ 2>/dev/null || echo "no existe"
-          echo "=== /__w/linux-tkg/linux-tkg/linux-tkg/src/ ==="
-          ls -la /__w/linux-tkg/linux-tkg/linux-tkg/src/ 2>/dev/null || echo "no existe"
-          echo "=== /__w/linux-tkg/linux-tkg/linux-tkg/src/linux-src-git/ (top level) ==="
-          ls -la /__w/linux-tkg/linux-tkg/linux-tkg/src/linux-src-git/ 2>/dev/null | head -20 || echo "no existe"
-          echo "=== Buscando .config en todo src/ ==="
-          find /__w/linux-tkg/linux-tkg/linux-tkg/src -name ".config" 2>/dev/null || echo "ninguno"
-          echo "=== Buscando *.pkg.tar.zst ==="
-          find /__w -name "*.pkg.tar.zst" 2>/dev/null || echo "ninguno"
+          echo "=== linux66-tkg-userpatches/ ==="
+          ls -la /__w/linux-tkg/linux-tkg/linux-tkg/linux66-tkg-userpatches/ 2>/dev/null || echo "no existe"
+          echo "=== Verificando clang ==="
+          clang --version
+          lld --version || ld.lld --version
 
       # ─────────────────────────────────────────────
-      # 12. Fetch source (sin compilar) para poder parcharlo
-      # ─────────────────────────────────────────────
-      - name: "13 - Fetch kernel source (nobuild)"
-        run: |
-          sudo -E -u builduser bash -c "
-            cd /__w/linux-tkg/linux-tkg/linux-tkg
-            yes '' | makepkg --nobuild --noconfirm --skippgpcheck
-          " || true
-
-          echo "=== Estructura de src/ post-fetch ==="
-          ls -la /__w/linux-tkg/linux-tkg/linux-tkg/src/ 2>/dev/null || echo "src/ no existe"
-        env:
-          MAKEFLAGS: "-j$(nproc)"
-          CCACHE_DIR: /tmp/ccache
-
-      # ─────────────────────────────────────────────
-      # 13. Patch libbpf.c — fix const qualifier bug
-      #     Bug: char *next_path debería ser const char *next_path
-      #     Error: -Werror=discarded-qualifiers en GCC moderno con kernel 6.6
-      # ─────────────────────────────────────────────
-      - name: "14 - Patch libbpf.c const qualifier bug"
-        if: false
-        run: |
-          LIBBPF=$(find /__w/linux-tkg/linux-tkg/linux-tkg/src \
-            -path "*/resolve_btfids/libbpf/libbpf.c" 2>/dev/null | head -1)
-
-          if [ -z "$LIBBPF" ]; then
-            echo "❌ libbpf.c no encontrado — listando src/ para debug:"
-            find /__w/linux-tkg/linux-tkg/linux-tkg/src -maxdepth 5 -type f -name "*.c" 2>/dev/null | head -20
-            exit 1
-          fi
-
-          echo "✅ libbpf.c encontrado en: $LIBBPF"
-          echo "=== Líneas con next_path ANTES del patch ==="
-          grep -n "next_path" "$LIBBPF" | head -10
-
-          # Patch: cambiar 'char *next_path' a 'const char *next_path'
-          # Solo modifica la declaración, no los usos
-          sed -i 's/^\(\s*\)char \*next_path;/\1const char *next_path;/' "$LIBBPF"
-
-          echo "=== Líneas con next_path DESPUÉS del patch ==="
-          grep -n "next_path" "$LIBBPF" | head -10
-          echo "✅ Patch aplicado correctamente"
-
-          # Re-asignar permisos para que builduser pueda compilar
-          chown builduser:builduser "$LIBBPF"
-
-      # ─────────────────────────────────────────────
-      # 14. Compilación completa (--noextract para conservar el patch)
+      # 12. Compilación con Clang
       # ─────────────────────────────────────────────
       - name: "15 - Compile Kernel"
         run: |
           JOBS=$(nproc)
-          echo "Compilando con $JOBS cores"
+          echo "Compilando con $JOBS cores usando Clang"
           export MAKEFLAGS="-j${JOBS}"
           export CCACHE_DIR=/tmp/ccache
           sudo -E -u builduser bash -c "
             cd /__w/linux-tkg/linux-tkg/linux-tkg
-            yes '' | makepkg --noconfirm --skippgpcheck --noextract
+            yes '' | makepkg --noconfirm --skippgpcheck
           "
 
       - name: "16 - Show ccache stats"
@@ -294,7 +232,7 @@ jobs:
           CCACHE_DIR: /tmp/ccache
 
       # ─────────────────────────────────────────────
-      # 15. Buscar y preparar paquetes para el release
+      # 13. Buscar y preparar paquetes
       # ─────────────────────────────────────────────
       - name: "17 - Collect and stage packages"
         if: always()
@@ -308,7 +246,7 @@ jobs:
           ls -la linux-tkg/output/ 2>/dev/null || echo "ninguno"
 
       # ─────────────────────────────────────────────
-      # 16. Crear Release
+      # 14. Crear Release
       # ─────────────────────────────────────────────
       - name: "18 - Create GitHub Release"
         uses: softprops/action-gh-release@v2
@@ -333,6 +271,7 @@ jobs:
             | Versión | 6.6-latest (LTS) |
             | Arquitectura | `silvermont` |
             | Scheduler | `bore` |
+            | Compilador | `clang/llvm` |
             | Timer | 1000 Hz |
             | CPU Governor | `performance` |
             | Mitigaciones | deshabilitadas |
@@ -352,16 +291,11 @@ jobs:
 
             ### 📥 Instalación
             ```bash
-            # Descargar los .pkg.tar.zst del release y ejecutar:
             sudo pacman -U linux-tkg-*.pkg.tar.zst linux-tkg-headers-*.pkg.tar.zst
-
-            # Actualizar bootloader (GRUB):
             sudo grub-mkconfig -o /boot/grub/grub.cfg
             ```
 
-            > ⚠️ **Nota:** Este kernel está optimizado específicamente para el N2807.
-            > Las mitigaciones de CPU están deshabilitadas para maximizar rendimiento.
-            > No instalar en hardware diferente sin recompilar.
+            > ⚠️ Kernel optimizado para N2807. No instalar en hardware diferente sin recompilar.
           files: linux-tkg/output/*.pkg.tar.zst
           draft: false
           prerelease: false
