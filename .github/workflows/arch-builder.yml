@@ -5,7 +5,7 @@ on:
     branches:
       - main
       - master
-      - uso-de-modprobedb
+      - silvermont
 
 # ─────────────────────────────────────────────
 # Build environment variables passed to linux-tkg
