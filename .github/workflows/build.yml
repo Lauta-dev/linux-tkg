@@ -57,6 +57,9 @@ jobs:
 
       - name: "3.1 · Copy user config"
         run: cp silvermont.cfg customization.cfg
+      
+      - name: "3.2 · verificar"
+        run: ls
 
       # ── Step 4 ──────────────────────────────────────────────────────────────
       - name: "4 · Compile kernel"
