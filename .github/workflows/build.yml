@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - silvermont
 
 # ─────────────────────────────────────────────
 # Build environment variables passed to linux-tkg
@@ -53,6 +54,9 @@ jobs:
 
           chown user -R ..
           chown user -R /tmp
+
+      - name: "3.1 · Copy user config"
+        run: cp silvermont.cfg customization.cfg
 
       # ── Step 4 ──────────────────────────────────────────────────────────────
       - name: "4 · Compile kernel"

@@ -1,129 +1,118 @@
-# linux-tkg — Intel Celeron N2807 (Silvermont)
-
-Kernel Linux personalizado compilado con [linux-tkg](https://github.com/Frogging-Family/linux-tkg)
-de [Frogging-Family](https://github.com/Frogging-Family), optimizado específicamente para hardware
-Intel Atom/Silvermont de bajo consumo.
+# Linux TKG para Silvermont
+Linux TKG compilado para gaming y uso diario, optimizado para arquitectura Intel Silvermont.
 
 ---
 
-## Hardware objetivo
+## ⚠️ Compatibilidad
+
+**Solo soporta paquetes para Arch Linux.**
+No está testeado ni garantizado en otras distribuciones.
+
+---
+
+## 🖥️ Hardware Target
 
 | Propiedad | Valor |
-|---|---|
-| **CPU** | Intel Celeron N2807 @ 1.58GHz (max 2.16GHz) |
-| **Arquitectura** | x86_64 |
-| **Núcleos / Hilos** | 2 núcleos / 2 hilos (sin HT) |
-| **Micro-arquitectura** | Silvermont (Bay Trail) |
-| **Familia / Modelo** | 6 / 55 stepping 8 |
-| **L1d / L1i / L2** | 48 KiB / 64 KiB / 1 MiB |
-| **Virtualización** | VT-x |
-| **WiFi** | Realtek RTL8723BE (PCIe) |
-| **Distro** | Arch Linux (EndeavourOS) |
-
-### Instrucciones SIMD disponibles
-`SSE` `SSE2` `SSE4.1` `SSE4.2` `SSSE3` `PCLMULQDQ` `MOVBE` `POPCNT` `RDRAND`
+|-----------|-------|
+| CPU | Intel Celeron N2807 @ 1.58GHz |
+| Arquitectura | x86_64 (Silvermont) |
+| Núcleos | 2 (1 hilo por núcleo) |
+| Caché L1d | 48 KiB |
+| Caché L1i | 64 KiB |
+| Caché L2 | 1 MiB |
+| Frecuencia máx. | 2165 MHz |
+| Virtualización | VT-x |
 
 ---
 
-## Configuración de compilación
+## ⚙️ Configuración del Kernel
 
 | Opción | Valor |
-|---|---|
-| **Versión del kernel** | `6.12-latest` |
-| **CPU scheduler** | `pds` (Project C's Priority and Deadline Skiplist) |
-| **Compiler** | LLVM / Clang |
-| **LTO mode** | ThinLTO |
-| **Optimización CPU** | `silvermont` (`-march=silvermont`) |
-| **Kernel on diet** | `true` — subset reducido de módulos |
-| **modprobed-db** | `true` — solo módulos usados por este hardware |
-| **Debug symbols** | deshabilitado (`_debugdisable=true`, `_STRIP=true`) |
-| **Timer frequency** | 1000 Hz |
-| **CPU governor** | `performance` |
-| **TCP congestion** | cubic (default) |
-| **Preemption** | Preemptible Kernel (Low-Latency Desktop) |
-| **Fsync** | habilitado |
-| **Clear Linux patches** | habilitado |
-| **Custom cmdline** | `intel_pstate=passive split_lock_detect=off mitigations=off nowatchdog` |
+|--------|-------|
+| `_cpusched` | `pds` |
+| `_processor_opt` | `silvermont` |
+| Patchset | TKG default |
+| Módulos | `modprobed.db` (solo módulos usados) |
+
+### ¿Qué es PDS?
+PDS (Priority and Deadline based Scheduler) es un scheduler alternativo orientado a baja latencia e interactividad, ideal para gaming y uso de escritorio.
+
+### ¿Qué es modprobed.db?
+En lugar de compilar todos los módulos del kernel, se usa una base de datos (`modprobed.db`) con solo los módulos que el sistema realmente utiliza. Esto reduce el tiempo de compilación y el tamaño del kernel resultante.
 
 ---
 
-## Módulos incluidos (modprobed-db)
-
-Módulos cargados por este hardware específico:
-
-| Categoría | Módulos |
-|---|---|
-| **Input / Teclado** | `usbhid` `hid_generic` `psmouse` |
-| **WiFi** | `rtl8723be` `cfg80211` `mac80211` `rfkill` `btcoexist` |
-| **Bluetooth** | `bluetooth` `btusb` `btrtl` |
-| **Filesystems** | `xfs` `vfat` `fat` `nls_utf8` |
-| **Video** | incluidos en config base |
-
-### Config fragments (`essential.myfrag`)
-
-Módulos forzados como built-in porque están en el kernel oficial de Arch
-como `=y` pero no aparecen en modprobed-db:
-
+## 🗂️ Estructura del repositorio
 ```
-CONFIG_SERIO_I8042=y
-CONFIG_KEYBOARD_ATKBD=y
-CONFIG_EXT4_FS=y
-CONFIG_BTRFS_FS=y
+linux-tkg-silvermont/
+├── customization.cfg          # Original de linux-tkg, NO modificar
+├── silvermont.cfg             # ← Tu fuente de verdad, config para N2807
+├── modprobed.db               # Módulos usados por el hardware target
+└── .github/
+    └── workflows/
+        └── build.yml          # GitHub Action para compilar automáticamente
 ```
+
+> **Importante:** `customization.cfg` es el archivo original de linux-tkg y **no debe modificarse directamente**. La configuración real está en `silvermont.cfg`. El workflow lo copia automáticamente antes de compilar:
+> ```bash
+> cp silvermont.cfg customization.cfg
+> ```
+> Esto evita conflictos al sincronizar con el upstream de linux-tkg.
 
 ---
 
-## Mitigaciones de seguridad
+## 📦 Instalación
 
-El kernel se compila con `mitigations=off` en la cmdline para maximizar
-el rendimiento en este hardware de bajo consumo. Las vulnerabilidades
-conocidas para el N2807 son:
-
-| Vulnerabilidad | Estado |
-|---|---|
-| Meltdown | Mitigado (PTI) — está en cmdline off |
-| Spectre v1 | Mitigado |
-| Spectre v2 | Mitigado (Retpolines + IBRS) |
-| MDS | Mitigado (Clear CPU buffers) |
-| La mayoría restantes | Not affected |
-
-> ⚠️ Si usás este equipo en entornos de producción o multiusuario,
-> considerá quitar `mitigations=off` de la cmdline.
-
----
-
-## Build automático (GitHub Actions)
-
-El kernel se compila automáticamente via GitHub Actions en cada push
-usando un contenedor `archlinux:latest`.
-
-```
-.github/workflows/arch-builder.yml
-```
-
-Los artefactos y releases se publican automáticamente con el tag
-`v{version}-{scheduler}`, por ejemplo: `v6.12.74-pds`.
-
----
-
-## Instalación
-
-Descargá los paquetes del [último release](../../releases/latest):
-
+### Requisitos previos
 ```bash
-sudo pacman -U linux*pds*.pkg.tar.zst linux*pds*-headers*.pkg.tar.zst
+sudo pacman -S base-devel git
+yay -S modprobed-db
 ```
 
-Regenerá el initramfs si es necesario:
+### Generar tu modprobed.db
 
+> **Importante:** El `modprobed.db` incluido en este repo fue generado para el hardware listado arriba. Si tu hardware es diferente, generá el tuyo:
 ```bash
-sudo mkinitcpio -P
+sudo modprobed-db storesilent
+modprobed-db list
+```
+
+### Clonar y compilar
+```bash
+git clone https://github.com/TU_USUARIO/linux-tkg-silvermont
+cd linux-tkg-silvermont
+makepkg -si
 ```
 
 ---
 
-## Basado en
+## 🌿 Ramas
 
-- **[linux-tkg](https://github.com/Frogging-Family/linux-tkg)** por [Frogging-Family](https://github.com/Frogging-Family)
-- Patches: PDS, BMQ, BORE, glitched-eevdf, Clear Linux, fsync, OpenRGB
-- Kernel upstream: [gregkh/linux](https://github.com/gregkh/linux)
+| Rama | Descripción |
+|------|-------------|
+| `master` | Sincronizada con linux-tkg upstream |
+| `silvermont` | Config con modprobed.db para N2807 |
+
+---
+
+## 🏷️ Tags
+
+Los tags marcan versiones estables:
+```
+6.12-silvermont  →  Kernel 6.12 estable para Silvermont
+```
+
+---
+
+## 🙏 Créditos
+
+Basado en [linux-tkg](https://github.com/Frogging-Family/linux-tkg) de **Frogging-Family**.
+
+---
+
+## ⚠️ Vulnerabilidades conocidas del hardware
+
+El N2807 tiene vulnerabilidades conocidas (Meltdown, Spectre v1/v2, MDS) sin mitigación completa disponible. Es una limitación del hardware.
+```bash
+grep . /sys/devices/system/cpu/vulnerabilities/*
+```
