@@ -1,79 +1,121 @@
 name: Build archlinux kernel
+
 on:
-  workflow_call:
-    inputs:
-      _cpusched:
-        required: true
-        type: string
+  push:
+    branches:
+      - main
+      - master
+      - uso-de-modprobedb
 
-
+# ─────────────────────────────────────────────
+# Build environment variables passed to linux-tkg
+# These override values in customization.cfg
+# ─────────────────────────────────────────────
 env:
-  _processor_opt: "x86-64"
+  _processor_opt: "silvermont"
+  _compiler: "gcc"
+  _lto_mode: "none"
+  _noccache: "true"           # ccache deshabilitado (incompatible con su + container)
   _git_mirror: "gregkh"
   PKGDEST: "/tmp/linux-tkg"
   _debugdisable: "true"
-  _noccache: "true"
   _STRIP: "true"
-  _compiler: "llvm"
-  _lto_mode: "full"
-  _kernel_on_diet: "true"
   _kernel_work_folder: "/tmp"
   _kernel_source_folder: "/tmp"
-  # _modprobeddb: "true"
-  _modprobeddb_db_path: ${{ github.workspace }}/modprobed.db
   _nofallback: "true"
-
+  _modprobeddb_db_path: ${{ github.workspace }}/modprobed.db
 
 
 jobs:
   build-kernel:
-    env:
-      _cpusched: ${{ inputs._cpusched }}
-
     runs-on: ubuntu-latest
     container: archlinux:latest
 
-    steps:
-      # We need to install git so the checkout is done with it
-      #- name: Update mirrorlist
-      #  run: |
-      #    pacman -Sy --noconfirm reflector
-      #    reflector --latest 50 --protocol http,https --sort rate --save /etc/pacman.d/mirrorlist
+    env:
+      _cpusched: pds
 
-      - name: Install git
+    steps:
+      # ── Step 1 ──────────────────────────────────────────────────────────────
+      - name: "1 · Install git"
         run: pacman -Syu --noconfirm git
 
-      - name: Checkout linux-tkg
+      # ── Step 2 ──────────────────────────────────────────────────────────────
+      - name: "2 · Checkout linux-tkg"
         uses: actions/checkout@v4
 
-      # 1. Install deps needed for building and sudo
-      # 2. create a user "user" and give it passwordless sudo
-      #    and necessary permissions
-      #    because makepkg absolutely refuses to run as root
-      - name: Prepare for makepkg
+      # ── Step 3 ──────────────────────────────────────────────────────────────
+      - name: "3 · Install build dependencies and prepare non-root user"
         run: |
-          pacman -Syu --noconfirm base-devel sudo
-          useradd user -G wheel && echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+          pacman -Syu --noconfirm \
+            base-devel gcc binutils libelf elfutils pahole sudo
+
+          useradd user -G wheel
+          echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
           chown user -R ..
           chown user -R /tmp
 
-      # - name: "[debug] make dummy modprobed-db file for faster ci"
-      #   run: |
-      #     touch "${_modprobeddb_db_path}"
-      #     echo "${_modprobeddb_db_path}"
+      # ── Step 4 ──────────────────────────────────────────────────────────────
+      - name: "4 · Compile kernel"
+        run: |
+          su --preserve-environment user -c "yes '' | makepkg --noconfirm -s"
 
-      - name: Compile Kernel
-        run: su --preserve-environment user -c "yes '' | makepkg --noconfirm -s"
-        # run: |
-        #   mkdir -p "$PKGDEST"
-        #   echo "test" > "$PKGDEST"/linux-$_cpusched.pkg.tar.zst
-
-      - name: rename kernel config
+      # ── Step 5 ──────────────────────────────────────────────────────────────
+      - name: "5 · Rename kernel config"
         run: mv kernelconfig.new kernelconfig.arch.${{ env._cpusched }}.txt
 
-      - uses: actions/upload-artifact@v4
+      # ── Step 6 ──────────────────────────────────────────────────────────────
+      - name: "6 · Get kernel version and scheduler"
+        id: kver
+        run: |
+          PKG=$(find ${{ env.PKGDEST }} -name "linux*.pkg.tar.zst" \
+            ! -name "*headers*" ! -name "*docs*" | head -n1)
+          echo "Package found: $PKG"
+
+          VERSION=$(basename "$PKG" | grep -oP '\d+\.\d+\.\d+' | head -n1)
+          SCHED=$(basename "$PKG" | grep -oP '(?<=tkg-)[a-z]+(?=-llvm|-\d|-)' | head -n1)
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "sched=$SCHED" >> $GITHUB_OUTPUT
+          echo "Kernel: $VERSION | Scheduler: $SCHED"
+
+      # ── Step 7 ──────────────────────────────────────────────────────────────
+      - name: "7 · Upload artifacts"
+        uses: actions/upload-artifact@v4
         with:
-          name: arch-kernel-packages-${{ env._cpusched }}
+          name: arch-kernel-packages-${{ steps.kver.outputs.sched }}
           path: |
             ${{ env.PKGDEST }}/linux*.pkg.tar.zst
             kernelconfig*.txt
+
+      # ── Step 8 ─────────────────────────────────────────────────────────────
+      - name: "8 · Create GitHub Release"
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ steps.kver.outputs.version }}-${{ steps.kver.outputs.sched }}"
+          name: "Linux ${{ steps.kver.outputs.version }} · ${{ steps.kver.outputs.sched }} · silvermont (Arch)"
+          body: |
+            ## linux-tkg ${{ steps.kver.outputs.version }} — `${{ steps.kver.outputs.sched }}` scheduler
+
+            ### Target hardware
+            | Property | Value |
+            |---|---|
+            | Architecture | x86_64 |
+            | CPU | Intel Celeron N2807 (Bay Trail / Silvermont) |
+            | Compiler | GCC |
+            | Distribution | Arch Linux |
+
+            ### Build configuration
+            | Option | Value |
+            |---|---|
+            | CPU scheduler | `${{ steps.kver.outputs.sched }}` |
+            | LTO mode | none |
+            | Debug symbols | disabled |
+            | modprobed-db | enabled |
+
+          files: |
+            ${{ env.PKGDEST }}/linux*.pkg.tar.zst
+            kernelconfig.arch.${{ steps.kver.outputs.sched }}.txt
+          make_latest: true
+          fail_on_unmatched_files: false
