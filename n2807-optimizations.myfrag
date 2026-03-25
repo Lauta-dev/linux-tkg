@@ -1,0 +1,275 @@
+# =============================================
+# Optimizaciones para Intel Celeron N2807
+# Bay Trail - 2 cores - 4GB RAM - bare metal
+# EndeavourOS / linux-tkg / PDS scheduler
+#
+# Hardware confirmado:
+#   WiFi:     Realtek RTL8723BE (rtl8723be)
+#   Ethernet: Realtek RTL8111/8168 — NO SE USA
+#   GPU:      Intel HD Graphics (i915)
+#   Audio:    Intel HDA (snd_hda_intel)
+#   Camara:   Bison UVC Webcam (uvcvideo)
+#   DVB:      Siano Rio USB — NO SE USA
+#   BT:       Realtek RTL8723B (btusb+btrtl) — mantenido
+#   SD/MS:    Realtek USB (rtsx_usb)
+# =============================================
+
+
+# -----------------------------------------------
+# SIN AMD — hardware Intel puro
+# -----------------------------------------------
+# CONFIG_CPU_SUP_AMD is not set
+# CONFIG_X86_MCE_AMD is not set
+# CONFIG_AMD_IOMMU is not set
+# CONFIG_AMD_MEM_ENCRYPT is not set
+# CONFIG_AMD_NUMA is not set
+# CONFIG_X86_AMD_PSTATE is not set
+# CONFIG_AMD_NB is not set
+# CONFIG_AMD_WBRF is not set
+# CONFIG_CRYPTO_DEV_CCP is not set
+# CONFIG_PERF_EVENTS_AMD_BRS is not set
+# CONFIG_X86_AMD_PLATFORM_DEVICE is not set
+# CONFIG_KVM_AMD is not set
+# CONFIG_ACPI_CPPC_LIB is not set
+
+
+# -----------------------------------------------
+# SIN XEN — corremos bare metal
+# -----------------------------------------------
+# CONFIG_HYPERVISOR_GUEST is not set
+# CONFIG_PARAVIRT is not set
+# CONFIG_XEN_PV is not set
+# CONFIG_XEN_PVHVM is not set
+# CONFIG_XEN_PVH is not set
+# CONFIG_XEN_DOM0 is not set
+# CONFIG_XEN_BACKEND is not set
+# CONFIG_XEN_BALLOON is not set
+# CONFIG_XEN_SAVE_RESTORE is not set
+
+
+# -----------------------------------------------
+# SIN SURFACE — no es un Microsoft Surface
+# -----------------------------------------------
+# CONFIG_SURFACE_PLATFORMS is not set
+# CONFIG_SURFACE_AGGREGATOR is not set
+# CONFIG_SURFACE_AGGREGATOR_BUS is not set
+# CONFIG_SURFACE_AGGREGATOR_REGISTRY is not set
+# CONFIG_SURFACE_PLATFORM_PROFILE is not set
+
+
+# -----------------------------------------------
+# NUMA y CPU count — 2 cores, arquitectura UMA
+# -----------------------------------------------
+# CONFIG_NUMA is not set
+# CONFIG_AMD_NUMA is not set
+CONFIG_NR_CPUS=4
+
+
+# -----------------------------------------------
+# ETHERNET — no se usa, se elimina todo
+# -----------------------------------------------
+# CONFIG_NET_VENDOR_REALTEK is not set
+# CONFIG_NET_VENDOR_INTEL is not set
+# CONFIG_NET_VENDOR_3COM is not set
+# CONFIG_NET_VENDOR_ADAPTEC is not set
+# CONFIG_NET_VENDOR_AGERE is not set
+# CONFIG_NET_VENDOR_ALACRITECH is not set
+# CONFIG_NET_VENDOR_ALTEON is not set
+# CONFIG_NET_VENDOR_AMAZON is not set
+# CONFIG_NET_VENDOR_AMD is not set
+# CONFIG_NET_VENDOR_AQUANTIA is not set
+# CONFIG_NET_VENDOR_ARC is not set
+# CONFIG_NET_VENDOR_CADENCE is not set
+# CONFIG_NET_VENDOR_CAVIUM is not set
+# CONFIG_NET_VENDOR_CHELSIO is not set
+# CONFIG_NET_VENDOR_CISCO is not set
+# CONFIG_NET_VENDOR_CORTINA is not set
+# CONFIG_NET_VENDOR_DAVICOM is not set
+# CONFIG_NET_VENDOR_DEC is not set
+# CONFIG_NET_VENDOR_DLINK is not set
+# CONFIG_NET_VENDOR_EMULEX is not set
+# CONFIG_NET_VENDOR_ENGLEDER is not set
+# CONFIG_NET_VENDOR_EZCHIP is not set
+# CONFIG_NET_VENDOR_FUNGIBLE is not set
+# CONFIG_NET_VENDOR_GOOGLE is not set
+# CONFIG_NET_VENDOR_HUAWEI is not set
+# CONFIG_NET_VENDOR_I825XX is not set
+# CONFIG_NET_VENDOR_ADI is not set
+# CONFIG_NET_VENDOR_LITEX is not set
+# CONFIG_NET_VENDOR_MARVELL is not set
+# CONFIG_NET_VENDOR_MELLANOX is not set
+# CONFIG_NET_VENDOR_META is not set
+# CONFIG_NET_VENDOR_MICREL is not set
+# CONFIG_NET_VENDOR_MICROCHIP is not set
+# CONFIG_NET_VENDOR_MICROSEMI is not set
+# CONFIG_NET_VENDOR_MICROSOFT is not set
+# CONFIG_NET_VENDOR_MYRI is not set
+# CONFIG_NET_VENDOR_NI is not set
+# CONFIG_NET_VENDOR_NATSEMI is not set
+# CONFIG_NET_VENDOR_NETERION is not set
+# CONFIG_NET_VENDOR_NETRONOME is not set
+# CONFIG_NET_VENDOR_8390 is not set
+# CONFIG_NET_VENDOR_NVIDIA is not set
+# CONFIG_NET_VENDOR_OKI is not set
+# CONFIG_NET_VENDOR_PACKET_ENGINES is not set
+# CONFIG_NET_VENDOR_PENSANDO is not set
+# CONFIG_NET_VENDOR_QLOGIC is not set
+# CONFIG_NET_VENDOR_BROCADE is not set
+# CONFIG_NET_VENDOR_QUALCOMM is not set
+# CONFIG_NET_VENDOR_RDC is not set
+# CONFIG_NET_VENDOR_RENESAS is not set
+# CONFIG_NET_VENDOR_ROCKER is not set
+# CONFIG_NET_VENDOR_SAMSUNG is not set
+# CONFIG_NET_VENDOR_SEEQ is not set
+# CONFIG_NET_VENDOR_SILAN is not set
+# CONFIG_NET_VENDOR_SIS is not set
+# CONFIG_NET_VENDOR_SOLARFLARE is not set
+# CONFIG_NET_VENDOR_SMSC is not set
+# CONFIG_NET_VENDOR_SOCIONEXT is not set
+# CONFIG_NET_VENDOR_STMICRO is not set
+# CONFIG_NET_VENDOR_SUN is not set
+# CONFIG_NET_VENDOR_SYNOPSYS is not set
+# CONFIG_NET_VENDOR_TEHUTI is not set
+# CONFIG_NET_VENDOR_TI is not set
+# CONFIG_NET_VENDOR_VERTEXCOM is not set
+# CONFIG_NET_VENDOR_VIA is not set
+# CONFIG_NET_VENDOR_WANGXUN is not set
+# CONFIG_NET_VENDOR_WIZNET is not set
+# CONFIG_NET_VENDOR_XILINX is not set
+
+
+# -----------------------------------------------
+# WIFI — solo rtl8723be (tu chip)
+# -----------------------------------------------
+# CONFIG_WLAN_VENDOR_ADMTEK is not set
+# CONFIG_WLAN_VENDOR_ATH is not set
+# CONFIG_WLAN_VENDOR_ATMEL is not set
+# CONFIG_WLAN_VENDOR_BROADCOM is not set
+# CONFIG_WLAN_VENDOR_INTEL is not set
+# CONFIG_WLAN_VENDOR_INTERSIL is not set
+# CONFIG_WLAN_VENDOR_MARVELL is not set
+# CONFIG_WLAN_VENDOR_MEDIATEK is not set
+# CONFIG_WLAN_VENDOR_MICROCHIP is not set
+# CONFIG_WLAN_VENDOR_PURELIFI is not set
+# CONFIG_WLAN_VENDOR_RALINK is not set
+# CONFIG_WLAN_VENDOR_RSI is not set
+# CONFIG_WLAN_VENDOR_SILABS is not set
+# CONFIG_WLAN_VENDOR_ST is not set
+# CONFIG_WLAN_VENDOR_TI is not set
+# CONFIG_WLAN_VENDOR_ZYDAS is not set
+# CONFIG_WLAN_VENDOR_QUANTENNA is not set
+
+# Drivers Realtek WiFi que NO son tu chip
+# CONFIG_RTL8723AE is not set
+# CONFIG_RTL8192EE is not set
+# CONFIG_RTL8821AE is not set
+
+# Debug de rtlwifi — overhead innecesario en produccion
+# CONFIG_RTLWIFI_DEBUG is not set
+
+
+# -----------------------------------------------
+# DVB / Media — subsistema eliminado
+# No se usa el sintonizador Siano ni ningun DVB
+# Se mantiene: uvcvideo (camara Bison UVC)
+# -----------------------------------------------
+# CONFIG_MEDIA_DIGITAL_TV_SUPPORT is not set
+# CONFIG_MEDIA_ANALOG_TV_SUPPORT is not set
+# CONFIG_MEDIA_RADIO_SUPPORT is not set
+# CONFIG_DVB_CORE is not set
+# CONFIG_SMS_SIANO_MDTV is not set
+
+
+# -----------------------------------------------
+# GPU — solo Intel i915
+# -----------------------------------------------
+# CONFIG_DRM_NOUVEAU is not set
+# CONFIG_DRM_AMDGPU is not set
+# CONFIG_DRM_RADEON is not set
+
+
+# -----------------------------------------------
+# HID — solo hid_generic y usbhid
+# -----------------------------------------------
+# CONFIG_HID_LOGITECH is not set
+# CONFIG_HID_LOGITECH_DJ is not set
+# CONFIG_HID_LOGITECH_HIDPP is not set
+# CONFIG_HID_MICROSOFT is not set
+# CONFIG_HID_APPLE is not set
+# CONFIG_HID_CHERRY is not set
+# CONFIG_HID_BELKIN is not set
+# CONFIG_HID_CORSAIR is not set
+# CONFIG_HID_RAZER is not set
+# CONFIG_HID_STEELSERIES is not set
+# CONFIG_HID_ROCCAT is not set
+# CONFIG_HID_THRUSTMASTER is not set
+# CONFIG_HID_WACOM is not set
+# CONFIG_HID_SONY is not set
+# CONFIG_HID_NINTENDO is not set
+
+
+# -----------------------------------------------
+# ENTERPRISE STORAGE — sin controladoras SAS/RAID
+# -----------------------------------------------
+# CONFIG_MEGARAID_NEWGEN is not set
+# CONFIG_MEGARAID_LEGACY is not set
+# CONFIG_MEGARAID_SAS is not set
+# CONFIG_FUSION is not set
+
+
+# -----------------------------------------------
+# FILESYSTEMS — solo los que usas
+# ext4, fat/vfat, ntfs3 confirmados en uso
+# f2fs: no hay particiones f2fs — eliminado
+# XFS: no aparece en lsmod — eliminado
+# -----------------------------------------------
+# CONFIG_XFS_FS is not set
+# CONFIG_F2FS_FS is not set
+
+
+# -----------------------------------------------
+# AUDIO OSS — legacy de los 90, no lo usa nada moderno
+# PipeWire/PulseAudio/ALSA no lo necesitan
+# -----------------------------------------------
+# CONFIG_SOUND_OSS_CORE is not set
+# CONFIG_SND_OSSEMUL is not set
+
+
+# -----------------------------------------------
+# MEMORY STICK — formato Sony (PSP, Cybershot)
+# rtsx_usb_ms y memstick cargados con 0 usuarios
+# -----------------------------------------------
+# CONFIG_MEMSTICK is not set
+
+
+# -----------------------------------------------
+# CLASSMATE LAPTOP — cargado con 0 usuarios
+# N2807 en hardware generico, no Classmate
+# -----------------------------------------------
+# CONFIG_CLASSMATE_LAPTOP is not set
+
+
+# -----------------------------------------------
+# PROTOCOLOS LEGACY / NICHO
+# -----------------------------------------------
+# CONFIG_HAMRADIO is not set
+
+# -----------------------------------------------
+# PROTOCOLOS / DRIVERS SIN USO CONFIRMADO
+# -----------------------------------------------
+
+# IBM 842 — compresion para PowerPC, sin aceleracion en x86
+# CONFIG_842_COMPRESS is not set
+# CONFIG_842_DECOMPRESS is not set
+
+# Fujitsu-Siemens LIFEBOOK — no es tu hardware
+# CONFIG_ACPI_CMPC is not set
+
+# Emulacion botones mouse Mac — no tenes Mac
+# CONFIG_MAC_EMUMOUSEBTN is not set
+
+# Tests de red del kernel — solo para desarrollo
+# CONFIG_NET_SELFTESTS is not set
+
+# LEDs via ALSA — sin teclado con LED de mute
+# CONFIG_SND_CTL_LED is not set

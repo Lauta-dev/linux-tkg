@@ -36,7 +36,7 @@ Virt    : VT-x habilitado
 ```
 _cpusched       = pds
 _processor_opt  = silvermont
-_compiler       = gcc
+_compiler       = clang (llvm + thin)
 _lto_mode       = none
 _modprobeddb    = true
 _debugdisable   = true
@@ -130,13 +130,6 @@ La config del kernel vive en las variables `env:` del workflow — no en el `cus
 |------|-------------|
 | `master` | Sincronizada con linux-tkg upstream |
 | `silvermont` | Config + CI para Intel N2807 con modprobed-db |
-
----
-
-## 🏷️ Tags
-```
-v6.12.x-pds  →  Kernel 6.12.x · scheduler PDS · Silvermont
-```
 
 ---
 

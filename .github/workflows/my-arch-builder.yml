@@ -1,4 +1,4 @@
-name: Build archlinux kernel
+name: Build archlinux kernel (6.18-latest silvermont)
 
 on:
   push:
@@ -11,6 +11,7 @@ env:
   _modprobeddb: "true"
   _modprobeddb_db_path: "${{ github.workspace }}/modprobed.db"
   _EXT_CONFIG_PATH: "${{ github.workspace }}/silvermont.cfg"
+  PKGDEST: "/tmp/linux-tkg"
 
 jobs:
   build-kernel:
@@ -28,7 +29,7 @@ jobs:
       #    pacman -Sy --noconfirm reflector
       #    reflector --latest 50 --protocol http,https --sort rate --save /etc/pacman.d/mirrorlist
 
-      - name: Install git
+      - name: 1 - Install git
         run: pacman -Syu --noconfirm git
 
       - name: Checkout linux-tkg
@@ -38,7 +39,7 @@ jobs:
       # 2. create a user "user" and give it passwordless sudo
       #    and necessary permissions
       #    because makepkg absolutely refuses to run as root
-      - name: Prepare for makepkg
+      - name: 2 - Prepare for makepkg
         run: |
           pacman -Syu --noconfirm base-devel sudo
           useradd user -G wheel && echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
@@ -50,18 +51,34 @@ jobs:
       #     touch "${_modprobeddb_db_path}"
       #     echo "${_modprobeddb_db_path}"
 
-      - name: Compile Kernel
+      - name: 3 - Compile Kernel
         run: su --preserve-environment user -c "yes '' | makepkg --noconfirm -s"
         # run: |
         #   mkdir -p "$PKGDEST"
         #   echo "test" > "$PKGDEST"/linux-$_cpusched.pkg.tar.zst
 
-      - name: rename kernel config
-        run: mv kernelconfig.new kernelconfig.arch.${{ env._cpusched }}.txt
+      - name: 4 - rename kernel config
+        run: mv kernelconfig.new kernelconfig.arch.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: arch-kernel-packages-${{ env._cpusched }}
+          name: arch-kernel-packages
           path: |
             ${{ env.PKGDEST }}/linux*.pkg.tar.zst
             kernelconfig*.txt
+      
+      - name: "5 - Create GitHub Release"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "kernel-6.14-silvermont-${{ github.run_number }}"
+          name: "Linux 6.18 - Intel Silvermont - build #${{ github.run_number }}"
+          body: |
+            Kernel 6.18-latest compilado para Intel Silvermont (Atom).
+            - Branch: `${{ github.ref_name }}`
+            - Commit: `${{ github.sha }}`
+            - Config: `silvermont.cfg`
+          files: |
+            ${{ env.PKGDEST }}/linux*.pkg.tar.zst
+            kernelconfig*.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
