@@ -1,162 +1,167 @@
-# Linux-tkg
+```
+██╗     ██╗███╗   ██╗██╗   ██╗██╗  ██╗    ████████╗██╗  ██╗ ██████╗
+██║     ██║████╗  ██║██║   ██║╚██╗██╔╝    ╚══██╔══╝██║ ██╔╝██╔════╝
+██║     ██║██╔██╗ ██║██║   ██║ ╚███╔╝        ██║   █████╔╝ ██║  ███╗
+██║     ██║██║╚██╗██║██║   ██║ ██╔██╗        ██║   ██╔═██╗ ██║   ██║
+███████╗██║██║ ╚████║╚██████╔╝██╔╝ ██╗       ██║   ██║  ██╗╚██████╔╝
+╚══════╝╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝       ╚═╝   ╚═╝  ╚═╝ ╚═════╝
+                        [ para Silvermont · Arch Linux ]
+```
 
-This repository provides scripts to automatically download, patch and compile the Linux Kernel from [the official Linux git repository](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git), with a selection of patches aiming for better desktop/gaming experience. The provided patches can be enabled/disabled by editing the `customization.cfg` file and/or by following the interactive install script. You can use an external config file (default is `$HOME/.config/frogminer/linux-tkg.cfg`, tweakable with the `_EXT_CONFIG_PATH` variable in `customization.cfg`). You can also use your own patches (more information in `customization.cfg` file).
+> **linux-tkg compilado para gaming y uso diario.**  
+> Optimizado para Intel Celeron N2807 (Bay Trail / Silvermont) con scheduler PDS y modprobed-db.
 
-### Important information
+---
 
-- **Non-pacman distros support can be considered experimental. You're invited to report issues you might encounter with it.**
-- **If your distro isn't using systemd, please set _configfile="running-kernel" in customization.cfg or you might end up with a non-bootable kernel**
+## ⚠️ ADVERTENCIA
 
-- Keep in mind building recent linux kernels with GCC will require ~20-25GB of disk space. Using llvm/clang, LTO, ccache and/or enabling more drivers in the defconfig will push that requirement higher, so make sure you have enough free space on the volume you're using to build.
-- In `intel_pstate` driver, frequency scaling aggressiveness has been changed with kernel 5.5 which results in stutters and poor performance in low/medium load scenarios (for higher power savings). As a workaround for our gaming needs, we are setting it to passive mode to make use of the `acpi_cpufreq` governor passthrough, keeping full support for turbo frequencies. It's combined with our aggressive ondemand governor by default for good performance on most CPUs while keeping frequency scaling for power savings. In a typical low/medium load scenario (Core i7 9700k, playing Mario Galaxy on Dolphin emulator) intel_pstate in performance mode gives a stuttery 45-50 fps experience, while passive mode + aggressive ondemand offers a locked 60 fps.
-- Nvidia's proprietary drivers might need to be patched if they don't support your chosen kernel OOTB: [Frogging-Family nvidia-all](https://github.com/Frogging-Family/nvidia-all) can do that automatically for you.
-- Note regarding kernels older than 5.9 on Arch Linux: since the switch to `zstd` compressed `initramfs` by default, you will face an `invalid magic at start of compress` error by default. You can workaround the issue by editing `/etc/mkinitcpio.conf` to uncomment the `COMPRESSION="lz4"` (for example, since that's the best option after zstd) line and regenerating `initramfs` for all kernels with `sudo mkinitpcio -P`
+**Solo soporta paquetes para Arch Linux.**  
+No probado ni garantizado en otras distribuciones. Usalo bajo tu propio riesgo.
 
-### Customization options
+---
 
-#### Alternative CPU schedulers
+## 🖥️ Hardware Target
+```
+CPU     : Intel(R) Celeron(R) CPU N2807 @ 1.58GHz
+Arch    : x86_64 (Silvermont / Bay Trail)
+Cores   : 2 físicos · 1 hilo por núcleo
+L1d     : 48 KiB  |  L1i : 64 KiB  |  L2 : 1 MiB
+Freq    : 499 MHz (min) → 1580 MHz (base) → 2165 MHz (boost)
+Virt    : VT-x habilitado
+```
 
-[CFS](https://en.wikipedia.org/wiki/Completely_Fair_Scheduler) is the only CPU scheduler available in the "vanilla" kernel sources ≤ 6.5.
-[EEVDF](https://lwn.net/Articles/925371/) is the only CPU scheduler available in the "vanilla" kernel sources ≥ 6.6.
+---
 
-Its current implementation doesn't allow for injecting additional schedulers at kernel level, and requires replacing it. Only one scheduler can be patched in at a time.
-However, using [Sched-ext](https://github.com/sched-ext/scx), it's possible to inject CPU schedulers at runtime. Exists and enabled by default starting kernel 6.12.
-Arch users get scx schedulers from the `scx-scheds` package or on the [AUR](https://aur.archlinux.org/packages/scx-scheds-git) thanks to @sirlucjan (for persistence, set scheduler in "/etc/default/scx" and enable the `scx` service).
+## ⚙️ Config del Kernel
+```
+_cpusched       = pds
+_processor_opt  = silvermont
+_compiler       = gcc
+_lto_mode       = none
+_modprobeddb    = true
+_debugdisable   = true
+_ftracedisable  = true
+_timer_freq     = 1000
+_default_cpu_gov= performance
+_tickless       = 2
+_custom_cmdline = intel_pstate=passive split_lock_detect=off mitigations=off nowatchdog
+patchset        = linux-tkg default (zenify + glitched_base + clear_patches)
+```
 
-Alternative schedulers are optionally available in linux-tkg at build time:
+### ¿Por qué PDS?
+PDS (Priority and Deadline based Scheduler) es un scheduler alternativo de baja latencia, diseñado para interactividad y gaming. A diferencia de CFS/EEVDF, prioriza respuesta en lugar de throughput puro — ideal para hardware con pocos núcleos como el N2807.
 
-- Project C / PDS & BMQ by Alfred Chen: [blog](http://cchalpha.blogspot.com/ ), [code repository](https://gitlab.com/alfredchen/projectc)
-- MuQSS by Con Kolivas : [blog](http://ck-hack.blogspot.com/), [code repository](https://github.com/ckolivas/linux)
-- BORE (Burst-Oriented Response Enhancer) by Masahito Suzuki - CFS/EEVDF based : [code repository](https://github.com/firelzrd/bore-scheduler)
-- Undead PDS : TkG's port of the pre-Project C "PDS-mq" scheduler by Alfred Chen. While PDS-mq got dropped with kernel 5.1 in favor of its BMQ evolution/rework, it wasn't on par with PDS-mq in gaming. "U" PDS still performed better in some cases than other schedulers, so it's been kept undead for a while.
+### ¿Por qué modprobed-db?
+En lugar de compilar los ~6000 módulos del kernel stock, `modprobed-db` genera una lista con **solo los módulos que tu sistema realmente usa**. En hardware Silvermont esto reduce el tiempo de compilación de ~2h a ~20min y produce un kernel más liviano.
 
-These alternative schedulers may offer a better performance/latency ratio in some scenarios. The availability of each scheduler depends on the chosen Kernel version: the script will display what's available on a per-version basis.
+### ¿Por qué `mitigations=off`?
+El N2807 tiene vulnerabilidades conocidas (Meltdown, Spectre v1/v2, MDS) cuyas mitigaciones tienen un costo de rendimiento significativo en CPUs de esta generación. En un sistema de uso personal sin datos sensibles, deshabilitarlas recupera rendimiento real.
 
-#### Default tweaks
+> **Si no estás de acuerdo con esto, quitá `mitigations=off` del cmdline antes de compilar.**
 
-- Memory management and swapping tweaks
-- Scheduling tweaks
-- `CFS/EEVDF` tweaks
-- Using the ["Cake"](https://www.bufferbloat.net/projects/codel/wiki/CakeTechnical/) network queue management system
-- Using `vm.max_map_count=16777216` by default
-- Cherry-picked patches from [Clear Linux's patchset](https://github.com/clearlinux-pkgs/linux)
+---
 
-#### Optional tweaks
+## 🗂️ Estructura del Repo
+```
+linux-tkg-silvermont/
+├── customization.cfg          ← Original de linux-tkg. NO modificar.
+├── silvermont.cfg             ← Tu fuente de verdad. Referencia de config.
+├── modprobed.db               ← Módulos del hardware target (N2807)
+├── *.myfrag                   ← Config fragments aplicados al build
+└── .github/
+    └── workflows/
+        └── build.yml          ← CI: compila y publica releases automáticamente
+```
 
-The `customization.cfg` file offers many toggles for extra tweaks:
+> `customization.cfg` **no se modifica directamente**. Las variables de config se pasan como `env:` en el workflow, sobreescribiendo el cfg en tiempo de build. Esto evita conflictos al sincronizar con el upstream de linux-tkg.
 
-- [NTsync](https://repo.or.cz/linux/zf.git/shortlog/refs/heads/ntsync5), `Fsync` and `Futex2`(deprecated) support: can improve the performance in games, needs a patched wine like [wine-tkg](https://github.com/Frogging-Family/wine-tkg-git)
-- [Graysky's per-CPU-arch native optimizations](https://github.com/graysky2/kernel_compiler_patch): tunes the compiled code to to a specified CPU
-- Compile with GCC or Clang with optional `O2`/`O3` and `LTO` (Clang only) optimizations.
-  - **Warning regarding DKMS modules prior to v3.0.2 (2021-11-21) and Clang:** `DKMS` version v3.0.1 and earlier will default to using GCC, which will fail to build modules against a Clang-built kernel. This will - for example - break Nvidia drivers. Forcing older `DKMS` to use Clang can be done but isn't recommended.
-- Using [Modprobed-db](https://github.com/graysky2/modprobed-db)'s database can reduce the compilation time and produce a smaller kernel which will only contain the modules listed in it. **NOT recommended**
-  - **Warning**: make sure to read [thoroughly about it first](https://wiki.archlinux.org/index.php/Modprobed-db) since it comes with caveats that can lead to an unbootable kernel.
-- "Zenify" patchset using core blk, mm and scheduler tweaks from Zen
-- `ZFS` FPU symbols (<5.9)
-- Overrides for missing ACS capabilities
-- [OpenRGB](https://gitlab.com/CalcProgrammer1/OpenRGB) support
-- Provide own kernel `.config` file
-- ...
+---
 
-#### User patches
+## 📦 Instalación
 
-To apply your own patch files using the provided scripts, you will need to put them in a `linux<VERSION><PATCHLEVEL>-tkg-userpatches` folder -- where _VERSION_ and _PATCHLEVEL_ are the kernel version and patch level, as specified in [linux Makefile](https://github.com/torvalds/linux/blob/master/Makefile), the patch works on, _e.g_ `linux65-tkg-userpatches` -- at the same level as the `PKGBUILD` file, with the `.mypatch` extension. The script will by default ask if you want to apply them, one by one. The option `_user_patches` should be set to `true` in the `customization.cfg` file for this to work.
+### Desde GitHub Releases (recomendado)
 
+Bajá los `.pkg.tar.zst` de la sección [Releases](../../releases) e instalá con pacman:
+```bash
+sudo pacman -U linux-tkg-pds-*.pkg.tar.zst linux-tkg-pds-headers-*.pkg.tar.zst
+```
 
-### Install procedure
+### Compilar desde fuente
 
-For all the supported linux distributions, `linux-tkg` has to be cloned with `git`. Since it keeps a clone of the kernel's sources within (`linux-src-git`, created during the first build after a fresh clone), it is recommended to keep the cloned `linux-tkg` folder and simply update it with `git pull`, the install script does the necessary cleanup at every run.
+#### Requisitos
+```bash
+sudo pacman -S base-devel git
+yay -S modprobed-db
+```
 
-#### Arch & derivatives
+#### Generar tu propio modprobed.db
 
-```shell
-git clone https://github.com/Frogging-Family/linux-tkg.git
-cd linux-tkg
-# Optional: edit the "customization.cfg" file
+> El `modprobed.db` incluido fue generado en el hardware target (N2807). Si tu hardware es diferente, generá el tuyo:
+```bash
+sudo modprobed-db storesilent
+modprobed-db list
+```
+
+Cuanto más tiempo uses tu sistema antes de compilar, más completa va a ser la db.
+
+#### Build
+```bash
+git clone https://github.com/TU_USUARIO/linux-tkg-silvermont
+cd linux-tkg-silvermont
 makepkg -si
 ```
 
-The script will use a slightly modified Arch config from the `linux-tkg-config` folder, it can be changed through the `_configfile` variable in `customization.cfg`. The options selected at build-time are installed to `/usr/share/doc/$pkgbase/customization.cfg`, where `$pkgbase` is the package name.
+---
 
-**Note:** the `base-devel` package group is expected to be installed, see [here](https://wiki.archlinux.org/title/Makepkg) for more information.
+## 🤖 CI / GitHub Actions
 
-#### DEB (Debian, Ubuntu and derivatives) and RPM (Fedora, SUSE and derivatives) based distributions
-
-**Important notes:**
-An issue has been reported for Ubuntu where the stock kernel cannot boot properly any longer, the whereabouts are not entirely clear (only a single user reported that, see https://github.com/Frogging-Family/linux-tkg/issues/436).
-
-The interactive `install.sh` script will create, depending on the selected distro, `.deb` or `.rpm` packages, move them in the the subfolder `DEBS` or `RPMS` then prompts to install them with the distro's package manager.
-
-```shell
-git clone https://github.com/Frogging-Family/linux-tkg.git
-cd linux-tkg
-# Optional: edit the "customization.cfg" file
-./install.sh install
+El workflow `.github/workflows/build.yml` se ejecuta automáticamente en cada push a `silvermont` y genera un Release con los paquetes listos para instalar.
+```
+push → build en Arch container → makepkg → upload artifacts → GitHub Release
 ```
 
-Uninstalling custom kernels installed through the script has to be done
-manually. `install.sh` can can help out with some useful information:
+La config del kernel vive en las variables `env:` del workflow — no en el `customization.cfg` — para sobrevivir syncs con upstream.
 
-```shell
-cd path/to/linux-tkg
-./install.sh uninstall-help
+---
+
+## 🌿 Ramas
+
+| Rama | Descripción |
+|------|-------------|
+| `master` | Sincronizada con linux-tkg upstream |
+| `silvermont` | Config + CI para Intel N2807 con modprobed-db |
+
+---
+
+## 🏷️ Tags
+```
+v6.12.x-pds  →  Kernel 6.12.x · scheduler PDS · Silvermont
 ```
 
-The script will use a slightly modified Arch config from the `linux-tkg-config` folder, it can be changed through the `_configfile` variable in `customization.cfg`.
+---
 
-#### Generic install
+## ⚠️ Vulnerabilidades del hardware
+```bash
+$ grep . /sys/devices/system/cpu/vulnerabilities/*
 
-The interactive `install.sh` script can be used to perform a "Generic" install by choosing `Generic` when prompted. It git clones the kernel tree in the `linux-src-git` folder, patches the code and edits a `.config` file in it. The commands to do are the following:
-
-```shell
-git clone https://github.com/Frogging-Family/linux-tkg.git
-cd linux-tkg
-# Optional: edit the "customization.cfg" file
-./install.sh install
+mds              : Vulnerable; SMT vulnerable
+meltdown         : Vulnerable
+spectre_v1       : Vulnerable: __user pointer sanitization and usercopy barriers only
+spectre_v2       : Vulnerable; IBPB: disabled; STIBP: disabled
+mmio_stale_data  : Unknown: No mitigations
 ```
 
-The script will compile the kernel then prompt before doing the following:
+Limitaciones del hardware (Silvermont, 2013). No hay mitigación completa disponible independientemente del kernel que uses.
 
-```shell
-sudo cp -R . /usr/src/linux-tkg-${kernel_flavor}
-cd /usr/src/linux-tkg-${kernel_flavor}
-sudo make modules_install
-sudo make install
-```
+---
 
-**Notes:**
+## 🙏 Créditos
 
-- All the needed dependencies to patch, configure, compile or install the kernel are expected to be installed by the user beforehand.
-- If you only want the script to patch the sources in `linux-src-git`, you can use `./install.sh config`
-- `${kernel_flavor}` is a default naming scheme but can be customized with the variable `_kernel_localversion` in `customization.cfg`.
-- `_dracut_options` is a variable that can be changed in `customization.cfg`.
-- `_libunwind_replace` is a variable that can be changed in `customization.cfg` for replacing `libunwind` with `llvm-libunwind`.
-- The script uses Arch's `.config` file as a base. A custom one can be provided through `_configfile` in `customization.cfg`.
-- The installed files will not be tracked by your package manager and uninstalling requires manual intervention.
-  `./install.sh uninstall-help` can help with useful information if your install procedure follows the `Generic` approach.
-- Installing the kernel with `make install` calls `/sbin/installkernel` (see [here](https://docs.kernel.org/kbuild/kbuild.html#installkernel)) to put the kernel at the right place and trigger an initramfs (and UKI) generation,
-  check your distro's documentation on how to configure it to your needs
-  - [arch](https://wiki.archlinux.org/title/Kernel-install)
-  - [gentoo](https://wiki.gentoo.org/wiki/Installkernel)
+Basado en **[linux-tkg](https://github.com/Frogging-Family/linux-tkg)** de [Frogging-Family](https://github.com/Frogging-Family).  
+Todo el trabajo del patchset, sistema de compilación y schedulers alternativos es de ellos.
 
-#### Gentoo
+---
 
-The interactive `install.sh` script supports Gentoo by following the same procedure as `Generic`, with minor additions
-
-1. Applies few Gentoo patches
-   - `https://dev.gentoo.org/~mpagano/genpatches/trunk/$kver/4567_distro-Gentoo-Kconfig.patch`
-   - `https://dev.gentoo.org/~mpagano/genpatches/trunk/$kver/3000_Support-printing-firmware-info.patch`
-2. Symlinks the newly installed `/usr/src/linux-tkg-${kernel_flavor}` src folder to `/usr/src/linux`
-3. Offers to do a `emerge @module-rebuild` for convenience
-
-```shell
-git clone https://github.com/Frogging-Family/linux-tkg.git
-cd linux-tkg
-# Optional: edit the "customization.cfg" file
-./install.sh install
-```
-
-**Notes:**
-
-- On OpenRC, in case of boot issues, try setting `_configfile="running-kernel"` in `customization.cfg`.
-  - This will use the running kernel's `.config` file instead of Arch's.
+<div align="center">
+<sub>built with ❤️ for old hardware that still kicks</sub>
+</div>
