@@ -1,0 +1,25 @@
+# Maintainer: ruben <>
+pkgname=linux-tkg-silvermont-bin
+pkgver=PKGVER
+pkgrel=1
+pkgdesc="Kernel TKG con PDS optimizado para Silvermont. Clang + ThinLTO"
+arch=('x86_64')
+url="https://github.com/lauta-dev/linux-tkg"
+license=('GPL')
+depends=('coreutils' 'kmod' 'dracut')
+options=('!strip' '!debug')
+source=('KERNEL_URL' 'HEADER_URL')
+
+sha256sums=('SKIP' 'SKIP')
+
+package() {
+  msg2 "Instalando binarios de forma segura..."
+
+  # Extrae e instala todos los .pkg.tar.zst
+  for _pkg in "$srcdir"/*.pkg.tar.zst; do
+    bsdtar -xf "$_pkg" -C "$pkgdir/"
+  done
+
+  # Borra archivos inutiles
+  rm -f "$pkgdir"/.{PKGINFO,BUILDINFO,MTREE}
+}
