@@ -34,10 +34,10 @@ Virt    : VT-x habilitado
 
 ## ⚙️ Config del Kernel
 ```
-_cpusched       = pds
+_cpusched       = bore
 _processor_opt  = silvermont
 _compiler       = clang (llvm + thin)
-_lto_mode       = none
+_lto_mode       = thin
 _modprobeddb    = true
 _debugdisable   = true
 _ftracedisable  = true
@@ -48,8 +48,11 @@ _custom_cmdline = intel_pstate=passive split_lock_detect=off mitigations=off now
 patchset        = linux-tkg default (zenify + glitched_base + clear_patches)
 ```
 
-### ¿Por qué PDS?
-PDS (Priority and Deadline based Scheduler) es un scheduler alternativo de baja latencia, diseñado para interactividad y gaming. A diferencia de CFS/EEVDF, prioriza respuesta en lugar de throughput puro — ideal para hardware con pocos núcleos como el N2807.
+### ¿Por qué BORE?
+BORE (Burst-Oriented Response Enhancer) es un scheduler basado en EEVDF/CFS que mejora la interactividad sin sacrificar equidad entre procesos. Introduce un factor de "burst" que permite a tareas interactivas y de corta duración obtener CPU más rápido, reduciendo la latencia percibida en gaming y escritorio — ideal para hardware con pocos núcleos como el N2807.
+
+### ¿Por qué Clang + ThinLTO?
+El kernel se compila con **Clang/LLVM** en lugar de GCC, habilitando optimizaciones adicionales de compilador. **ThinLTO** aplica optimizaciones entre unidades de compilación sin el costo de memoria de LTO completo, produciendo un binario más optimizado en tiempos de build razonables.
 
 ### ¿Por qué modprobed-db?
 En lugar de compilar los ~6000 módulos del kernel stock, `modprobed-db` genera una lista con **solo los módulos que tu sistema realmente usa**. En hardware Silvermont esto reduce el tiempo de compilación de ~2h a ~20min y produce un kernel más liviano.
