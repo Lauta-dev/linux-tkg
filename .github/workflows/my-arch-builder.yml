@@ -1,9 +1,9 @@
-name: Build archlinux kernel (6.18-latest silvermont)
+name: Build archlinux kernel (7.0 silvermont)
 
 on:
   push:
     branches:
-      - silvermont  # O la rama que estés usando
+      - silvermont-7-latest  # O la rama que estés usando
   workflow_dispatch: # Esto te permite dispararlo a mano desde GitHub si querés
 
 permissions:
@@ -14,7 +14,7 @@ env:
   _modprobeddb_db_path: "${{ github.workspace }}/modprobed.db"
   _EXT_CONFIG_PATH: "${{ github.workspace }}/silvermont.cfg"
   PKGDEST: "/tmp/linux-tkg"
-  tag_name: "kernel-6.18-silvermont"
+  tag_name: "kernel-7.0-silvermont"
 
 jobs:
   build-kernel:
@@ -50,108 +50,25 @@ jobs:
           path: |
             ${{ env.PKGDEST }}/linux*.pkg.tar.zst
             kernelconfig*.txt
-      
-
-  pkgbuild:
-    runs-on: ubuntu-latest
-    container: archlinux:latest
-    needs: build-kernel
-    
-    env:
-      work: "/tmp/work"
-
-    steps:
-
-      - name: Instalar paquetes
-        run: pacman -Syu --noconfirm git base-devel sudo openssh
-      - name: Prepare for makepkg
-        run: |
-          useradd user -m -G wheel 
-          echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-
-      - name: Checkout linux-tkg
-        uses: actions/checkout@v4
-
-      - name: preparar
-        run: |
-          cp "${{ github.workspace }}/PKGBUILD_TEMPLATE" /tmp/work/PKGBUILD
-
-      - name: Descargar binarios
-        uses: actions/download-artifact@v4
-        with:
-          name: arch-kernel-packages
-          path: /tmp/work
-
-      - name: Dar permisos
-        run: | 
-          sudo chown -R user:user /tmp/work
-          sudo chown -R user:user ${{ github.workspace }}
-
-      - name: Renombrar
-        run: |
-          sudo -u user bash << 'EOF'
-          cd "${{ env.work }}"
-          for f in *.pkg.tar.zst; do
-            [[ "$f" == *"headers"* ]] && mv "$f" "linux-header.pkg.tar.zst" || mv "$f" "linux-kernel.pkg.tar.zst"
-          done
-          EOF
-
-      - name: Setear variables de entorno
-        run: |
-          cd "${{ env.work }}"
-          K="https://github.com/${{ github.repository }}/releases/download/${{ github.tag_name }}-${{ github.run_number }}/linux-kernel.pkg.tar.zst"
-          H="https://github.com/${{ github.repository }}/releases/download/${{ github.tag_name }}-${{ github.run_number }}/linux-header.pkg.tar.zst"
-          sudo sed -i "s|PKGVER|6.18-latest|" PKGBUILD
-          sudo sed -i "s|KERNEL_URL|$K|g" PKGBUILD
-          sudo sed -i "s|HEADER_URL|$H|g" PKGBUILD
-      
-      - name: config aur
-        run: |
-          su - user <<EOF
-            mkdir -p ~/.ssh
-            echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-            chmod 600 ~/.ssh/id_rsa
-            ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
-
-            # Configurar usuario de Git
-            git config --global user.name "Lautaro"
-            git config --global user.email "${{secrets.MAIL}}"
-          EOF
-
-      
-      - name: workflow
-        run: |
-          # 1. Permisos iniciales (como root)
-          chown -R user:user .
-
-          # 2. Todo el bloque de comandos ejecutado por 'user'
-          sudo -u user bash << 'EOF'
-            set -e
-            cd /tmp/work
-            git clone ssh://aur@aur.archlinux.org/linux-tkg-silvermont-bin.git
-            cd linux-tkg-silvermont-bin
-            cp /tmp/work/PKGBUILD .
-            cp /tmp/work/linux*.pkg.tar.zst
-
-            # Comandos de Arch
-            updpkgsums
-            makepkg --printsrcinfo > .SRCINFO
-
-            # Configurar Git y Subir
-            git add PKGBUILD .SRCINFO
-            git commit -m "Actualización v$GITHUB_RUN_NUMBER"
-            git push origin master
-          EOF
 
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "${{ env.tag_name }}-${{ github.run_number }}"
-          name: "Linux 6.18 - Intel Silvermont - build #${{ github.run_number }}"
+          name: "Linux 7.0 · Silvermont · BORE · build #${{ github.run_number }}"
           body: |
-            Kernel 6.18-latest compilado para Intel Silvermont (Atom).
+            Kernel `7.0-tkg` · BORE · Clang/ThinLTO · modprobed-db (N2807)
+
+            CPU  : Intel Celeron N2807 @ 1.58GHz (Bay Trail / Silvermont)
+            Arch : x86_64 · 2 cores · 1 thread/core
+
+            ```bash
+            sudo pacman -U linux-*.pkg.tar
+            ```
+
             - Branch: `${{ github.ref_name }}`
             - Commit: `${{ github.sha }}`
+            - Run: [`#${{ github.run_number }}`](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
           files: |
             ${{ env.work }}/linux-*.pkg.tar.zst
         env:
