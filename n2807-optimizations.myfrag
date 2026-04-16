@@ -19,9 +19,16 @@
 # -----------------------------------------------
 CONFIG_SERIO_I8042=y
 CONFIG_KEYBOARD_ATKBD=y
-CONFIG_EXT4_FS=y
 CONFIG_NTSYNC=m
 CONFIG_NR_CPUS=2
+
+CONFIG_EXT4_FS=y
+CONFIG_EXT4_USE_FOR_EXT2=y
+CONFIG_EXT4_FS_POSIX_ACL=y
+CONFIG_EXT4_FS_SECURITY=y
+
+CONFIG_EXFAT_FS=m
+CONFIG_EXFAT_DEFAULT_IOCHARSET="utf8"
 
 # -----------------------------------------------
 # SIN AMD — hardware Intel puro
