@@ -2,7 +2,7 @@
 pkgname=linux-tkg-silvermont-bin
 pkgver=PKGVER
 pkgrel=1
-pkgdesc="Kernel TKG con PDS optimizado para Silvermont. Clang + ThinLTO"
+pkgdesc="Kernel TKG con BORE optimizado para Silvermont. Clang + ThinLTO"
 arch=('x86_64')
 url="https://github.com/lauta-dev/linux-tkg"
 license=('GPL')
@@ -19,7 +19,4 @@ package() {
   for _pkg in "$srcdir"/*.pkg.tar.zst; do
     bsdtar -xf "$_pkg" -C "$pkgdir/"
   done
-
-  # Borra archivos inutiles
-  rm -f "$pkgdir"/.{PKGINFO,BUILDINFO,MTREE}
 }
