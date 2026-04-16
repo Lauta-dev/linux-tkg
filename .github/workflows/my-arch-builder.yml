@@ -27,6 +27,8 @@ jobs:
 
       - name: Checkout linux-tkg
         uses: actions/checkout@v4
+      - name: ls
+        run: ls
 
       # 1. Install deps needed for building and sudo
       # 2. create a user "user" and give it passwordless sudo
