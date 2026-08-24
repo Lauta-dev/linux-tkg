@@ -1,4 +1,4 @@
-name: Build archlinux kernel
+name: Build archlinux kernel two
 on:
   workflow_dispatch:
   workflow_call:
