@@ -19,17 +19,10 @@ on:
 
 
 env:
-  _processor_opt: "x86-64"
-  _git_mirror: "gregkh"
   PKGDEST: "/tmp/linux-tkg"
-  _debugdisable: "true"
-  _noccache: "true"
-  _STRIP: "true"
-  _compiler: "llvm"
   _kernel_work_folder: "/tmp"
   _kernel_source_folder: "/tmp"
   _modprobeddb_db_path: ${{ github.workspace }}/modprobed.db
-  _nofallback: "true"
 
 
 
