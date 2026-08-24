@@ -1,5 +1,6 @@
 name: Build archlinux kernel
 on:
+  workflow_dispatch:
   workflow_call:
     inputs:
       _cpusched:
