@@ -13,7 +13,7 @@ Target único del build: la máquina de abajo — una Silvermont con 4 GiB de RA
                         [ para Silvermont · Arch Linux ]
 ```
 
-## $ cat hardware.txt
+## Hardware
 
 ```text
 OS:       EndeavourOS x86_64
@@ -31,7 +31,7 @@ Audio:    Intel HDA (Atom Z36xxx)
 > **Kernel personal.** Compilado para ese SoC, no para el tuyo.
 > Quizás te sirva si tenés un Bay Trail/Braswell guardado, pero acá no se promete nada.
 
-## $ cat for-whom.txt
+## Para quién
 
 - **builder:** @Lauta-dev, via GitHub Actions (`workflow_dispatch`)
 - **user:** yo
@@ -42,14 +42,14 @@ Audio:    Intel HDA (Atom Z36xxx)
 - **tag:** `v<pkgver>-arch-<sched>`
 - **upstream:** [Frogging-Family/linux-tkg](https://github.com/Frogging-Family/linux-tkg)
 
-## $ cat build.why
+## Opciones de build
 
 - `_processor_opt="silvermont"` — es la µarch real del N2807; el tune existe en el compilador y es gratuito, así que se usa. Los builds de CI salen con `x86-64` baseline para poder caer en cualquier x86_64.
 - `gcc` local / `llvm` en CI — dos toolchains, mismo kernel, el sabor no cambia el resultado de fondo.
 - `_cpusched="bore"` — lo que de verdad se nota en un 2C sin AVX; `eevdf` queda de fallback seguro en CI.
 - stripped + sin debug info — el `.pkg.tar.zst` final tiene que caber porque el disco es chico y la RAM tampoco da margen.
 
-## $ gh release download
+## Instalación
 
 ```bash
 gh release download --repo Lauta-dev/linux-tkg --pattern 'linux*.pkg.tar.zst'
@@ -58,7 +58,7 @@ sudo pacman -U linux*-tkg-*.pkg.tar.zst
 
 O directo desde la página de [Releases](https://github.com/Lauta-dev/linux-tkg/releases): los assets incluyen headers, para quien necesite DKMS.
 
-## $ ls ../upstream-docs
+## Upstream
 
 ```text
 https://github.com/Frogging-Family/linux-tkg#readme
