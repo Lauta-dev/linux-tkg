@@ -38,11 +38,4 @@ sudo pacman -U linux*-tkg-*.pkg.tar.zst
 ```
 
 ---
-
-<p align="center">
-  <sub>
-    <b>Apología del hardware viejo</b><br>
-    un Celeron de 2014 no pide jubilación: le das un SSD, zram y un kernel a medida,<br>
-    y firma otra década. Cada línea de la tabla de arriba pelea todavía.
-  </sub>
-</p>
+<p align="center"><sub>Obsolete by design. Useful by choice.</sub></p>
