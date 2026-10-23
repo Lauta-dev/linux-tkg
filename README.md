@@ -1,7 +1,3 @@
-# 🐸 linux-tkg — para una sola máquina
-
-Kernel compilado por CI apuntando al hardware de abajo; packages listos para `pacman -U`.
-
 ```text
 ██╗     ██╗███╗   ██╗██╗   ██╗██╗  ██╗    ████████╗██╗  ██╗ ██████╗
 ██║     ██║████╗  ██║██║   ██║╚██╗██╔╝    ╚══██╔══╝██║ ██╔╝██╔════╝
