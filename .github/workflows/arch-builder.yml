@@ -41,6 +41,10 @@ jobs:
     runs-on: ubuntu-latest
     container: archlinux:latest
 
+    # required by the "Create GitHub release" step
+    permissions:
+      contents: write
+
     steps:
       # We need to install git so the checkout is done with it
       #- name: Update mirrorlist
@@ -48,8 +52,8 @@ jobs:
       #    pacman -Sy --noconfirm reflector
       #    reflector --latest 50 --protocol http,https --sort rate --save /etc/pacman.d/mirrorlist
 
-      - name: Install git
-        run: pacman -Syu --noconfirm git
+      - name: Install git and github-cli
+        run: pacman -Syu --noconfirm git github-cli
 
       - name: Checkout linux-tkg
         uses: actions/checkout@v4
@@ -85,3 +89,19 @@ jobs:
           path: |
             ${{ env.PKGDEST }}/linux*.pkg.tar.zst
             kernelconfig*.txt
+
+      - name: Create GitHub release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # pkgver of the built main package
+          # e.g. linux618-tkg-eevdf-llvm-6.18.2-273-x86_64.pkg.tar.zst -> 6.18.2
+          main_pkg="$(ls "${PKGDEST}"/linux*-tkg-*.pkg.tar.zst | grep -v -- '-headers' | head -n 1)"
+          pkgver="$(grep -oE '[0-9]+(\.[0-9]+)+' <<< "$main_pkg")"
+          gh release create "v${pkgver:?}-arch-${_cpusched}" \
+            "${PKGDEST}"/linux*-tkg-*.pkg.tar.zst \
+            --target "$GITHUB_SHA" \
+            --latest \
+            --title "linux-tkg ${_cpusched} ${pkgver} (arch x86-64)" \
+            --notes "linux-tkg kernel and headers packages for Arch Linux, built with the ${_compiler} compiler and the ${_cpusched} CPU scheduler."
