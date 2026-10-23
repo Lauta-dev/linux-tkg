@@ -1,4 +1,4 @@
-```text
+```
 ██╗     ██╗███╗   ██╗██╗   ██╗██╗  ██╗    ████████╗██╗  ██╗ ██████╗
 ██║     ██║████╗  ██║██║   ██║╚██╗██╔╝    ╚══██╔══╝██║ ██╔╝██╔════╝
 ██║     ██║██╔██╗ ██║██║   ██║ ╚███╔╝        ██║   █████╔╝ ██║  ███╗
@@ -10,7 +10,7 @@
 
 ## Hardware
 
-```text
+```
 OS:       EndeavourOS x86_64
 Kernel:   6.12.105-273-tkg-bore
 CPU:      Intel Celeron N2807 (2C/2T) @ 1.58→2.16 GHz · Silvermont · no AVX
@@ -22,8 +22,6 @@ LAN:      Realtek RTL810xE
 Audio:    Intel HDA (Atom Z36xxx)
 ```
 
-> [!WARNING]
-> **Kernel personal.** Compilado para ese SoC, no para el tuyo — acá no se promete nada.
 
 ## Opciones de build
 
@@ -33,8 +31,18 @@ Audio:    Intel HDA (Atom Z36xxx)
 
 ## Instalación
 
-Descargá los assets de la última [release](https://github.com/Lauta-dev/linux-tkg/releases) (kernel + headers, tags tipo `v<pkgver>-arch-<sched>`) y:
+Descargá los assets de la última [release](https://github.com/Lauta-dev/linux-tkg/releases) y:
 
 ```bash
 sudo pacman -U linux*-tkg-*.pkg.tar.zst
 ```
+
+---
+
+<p align="center">
+  <sub>
+    <b>Apología del hardware viejo</b><br>
+    un Celeron de 2014 no pide jubilación: le das un SSD, zram y un kernel a medida,<br>
+    y firma otra década. Cada línea de la tabla de arriba pelea todavía.
+  </sub>
+</p>
