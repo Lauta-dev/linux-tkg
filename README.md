@@ -27,7 +27,6 @@ Audio:    Intel HDA (Atom Z36xxx)
 
 ## Opciones de build
 
-- tune: `silvermont` en build local (nativo del N2807) · `x86-64` genérico en CI
 - toolchain: `llvm`, acá y en CI — única que se usa
 - scheduler: `bore` · `eevdf` (opción del dispatch de CI)
 - stripped + sin debug info — el `.pkg.tar.zst` tiene que ser liviano
