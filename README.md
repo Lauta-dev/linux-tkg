@@ -4,7 +4,30 @@ This repository provides scripts to automatically download, patch and compile an
 
 `linux-tkg` also ships with a selection of patches that can improve the desktop/gaming experience: most can be toggled by editing the [customization.cfg](./customization.cfg) file, or by simply following the interactive install script.
 
+## About this fork
+
+**This is a personal fork, built for and maintained by [@Lauta-dev](https://github.com/Lauta-dev).** It is not meant as a project for external users — the CI in [`.github/workflows/arch-builder.yml`](.github/workflows/arch-builder.yml) publishes the packages under [Releases](https://github.com/Lauta-dev/linux-tkg/releases) with my own hardware in mind.
+
+Everything below is upstream documentation: if the prebuilt kernel doesn't suit you, follow the standard `linux-tkg` procedure to build your own.
+
+### My machine
+
+| Component | Details |
+|---|---|
+| SoC / CPU | Intel Celeron **N2807** (Bay Trail) — 2 cores / 2 threads, 1.58 GHz base, up to 2.17 GHz burst, no AVX |
+| RAM | 4 GB DDR3L, ~3.7 GB usable (part shared with the iGPU) |
+| Swap | zram, ~3.7 GB |
+| Storage | Kingston SA400S37 240 GB SATA SSD |
+| GPU | Intel HD Graphics, integrated Bay Trail "Atom Z36xxx" (Gen 7), display-only |
+| Network | Realtek RTL8723BE WiFi, Realtek RTL810xE Ethernet |
+| OS | EndeavourOS (Arch Linux), running `6.12.105-273-tkg-bore` |
+
+Because of the SoC, CI builds use a plain x86-64 baseline (`_processor_opt="x86-64"`) and the clang/LLVM stack (`_compiler="llvm"`); cherry-picked schedulers are `eevdf` or `bore`.
+
+### Table of Contents
+
 - [Linux-tkg](#linux-tkg)
+  - [About this fork](#about-this-fork)
   - [Important information](#important-information)
   - [Customization options](#customization-options)
     - [Overview](#overview)
