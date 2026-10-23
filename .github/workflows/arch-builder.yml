@@ -95,10 +95,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # gh shells out to git, which refuses to touch the repo because
+          # "Prepare for makepkg" chowned it to the build user:
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           # pkgver of the built main package
           # e.g. linux618-tkg-eevdf-llvm-6.18.2-273-x86_64.pkg.tar.zst -> 6.18.2
           main_pkg="$(ls "${PKGDEST}"/linux*-tkg-*.pkg.tar.zst | grep -v -- '-headers' | head -n 1)"
-          pkgver="$(grep -oE '[0-9]+(\.[0-9]+)+' <<< "$main_pkg")"
+          pkgver="$(printf '%s' "$main_pkg" | grep -oE '[0-9]+(\.[0-9]+)+')"
           gh release create "v${pkgver:?}-arch-${_cpusched}" \
             "${PKGDEST}"/linux*-tkg-*.pkg.tar.zst \
             --target "$GITHUB_SHA" \
