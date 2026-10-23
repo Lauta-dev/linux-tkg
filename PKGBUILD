@@ -50,15 +50,15 @@ makedepends=(
   pahole
   perl
   python
-  rust
-  rust-bindgen
-  rust-src
   tar
   xxhash
   xz
   zlib
   zstd
 )
+if [ "$_rustdisable" != "true" ]; then
+  makedepends+=('rust' 'rust-bindgen' 'rust-src')
+fi
 if [ "$_compiler_name" = "-llvm" ]; then
   makedepends+=('clang' 'llvm' 'lld')
 fi
@@ -124,7 +124,7 @@ build() {
     _schedtool="command schedtool -B -n 1"
     _ionice="command ionice -n 1"
   fi
-  _runtime=$(
+  (
     if [ -n "$_schedtool" ]; then
       _pid="$(exec bash -c 'echo "$PPID"')"
       $_schedtool "$_pid" ||:
@@ -135,8 +135,8 @@ build() {
     export KCFLAGS
     export KRUSTFLAGS
 
-    time ( make ${_force_all_threads} ${llvm_opt} LOCALVERSION= bzImage modules 2>&1 ) 3>&1 1>&2 2>&3
-    return 0
+    set -o pipefail
+    time make ${_force_all_threads} ${llvm_opt} LOCALVERSION= bzImage modules |& tee "$_where/logs/build.log.txt"
   )
 }
 
@@ -272,6 +272,20 @@ hackheaders() {
 
   msg2 "Installing KConfig files..."
   find . -name 'Kconfig*' -exec install -Dm644 {} "$builddir/{}" \;
+
+  if [[ $(scripts/config -s CONFIG_RUST) = y ]]; then
+    msg2 "Installing Rust files..."
+    install -Dt "$builddir/rust" -m644 rust/*.rmeta
+    install -Dt "$builddir/rust" rust/*.so
+    # Include generated Rust sources needed by external modules.
+    while IFS= read -r -d '' _gen; do
+      install -Dm644 "$_gen" "$builddir/$_gen"
+    done < <(find rust -type f -name 'generated_*.rs' -print0)
+  fi
+
+  msg2 "Installing unstripped VDSO..."
+  make INSTALL_MOD_PATH="$pkgdir/usr" vdso_install \
+    link=  # Suppress build-id symlinks
 
   msg2 "Removing unneeded architectures..."
   local arch

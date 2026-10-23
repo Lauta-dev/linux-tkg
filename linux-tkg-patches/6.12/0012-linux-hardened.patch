@@ -1,5 +1,5 @@
 diff --git a/Documentation/admin-guide/kernel-parameters.txt b/Documentation/admin-guide/kernel-parameters.txt
-index 811345669be4..dad161137863 100644
+index 886095f45290..146d7374c9df 100644
 --- a/Documentation/admin-guide/kernel-parameters.txt
 +++ b/Documentation/admin-guide/kernel-parameters.txt
 @@ -631,17 +631,6 @@
@@ -73,10 +73,10 @@ index fa21cdd610b2..7c61018db5fa 100644
  ===================
  
 diff --git a/Documentation/networking/ip-sysctl.rst b/Documentation/networking/ip-sysctl.rst
-index dcbb6f6caf6d..d9d2ea78cd4b 100644
+index eb2c136be63d..b4cfc1b31842 100644
 --- a/Documentation/networking/ip-sysctl.rst
 +++ b/Documentation/networking/ip-sysctl.rst
-@@ -766,6 +766,24 @@ tcp_backlog_ack_defer - BOOLEAN
+@@ -768,6 +768,24 @@ tcp_backlog_ack_defer - BOOLEAN
  
  	Default : true
  
@@ -102,20 +102,20 @@ index dcbb6f6caf6d..d9d2ea78cd4b 100644
  	If set, provide RFC2861 behavior and time out the congestion
  	window after an idle period.  An idle period is defined at
 diff --git a/Makefile b/Makefile
-index 2eda2cddaace..5ee0b591513e 100644
+index 24d86c14edd8..9823549a1ef4 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -2,7 +2,7 @@
  VERSION = 6
  PATCHLEVEL = 12
- SUBLEVEL = 97
+ SUBLEVEL = 112
 -EXTRAVERSION =
 +EXTRAVERSION = -hardened1
  NAME = Baby Opossum Posse
  
  # *DOCUMENTATION*
 diff --git a/arch/Kconfig b/arch/Kconfig
-index 1812e4e4d714..67fc925bf66a 100644
+index cdb220f6c2cb..f4015b29cc55 100644
 --- a/arch/Kconfig
 +++ b/arch/Kconfig
 @@ -1091,7 +1091,7 @@ config ARCH_MMAP_RND_BITS
@@ -145,10 +145,10 @@ index 1812e4e4d714..67fc925bf66a 100644
  	  Kernel stack offset randomization is controlled by kernel boot param
  	  "randomize_kstack_offset=on/off", and this config chooses the default
 diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
-index dd98fa97aad0..97134066a0cb 100644
+index 938bf2f96b1a..4d2263a183b1 100644
 --- a/arch/arm64/Kconfig
 +++ b/arch/arm64/Kconfig
-@@ -1731,6 +1731,7 @@ config RODATA_FULL_DEFAULT_ENABLED
+@@ -1732,6 +1732,7 @@ config RODATA_FULL_DEFAULT_ENABLED
  config ARM64_SW_TTBR0_PAN
  	bool "Emulate Privileged Access Never using TTBR0_EL1 switching"
  	depends on !KCSAN
@@ -156,7 +156,7 @@ index dd98fa97aad0..97134066a0cb 100644
  	help
  	  Enabling this option prevents the kernel from accessing
  	  user-space memory directly by pointing TTBR0_EL1 to a reserved
-@@ -2330,6 +2331,7 @@ config RELOCATABLE
+@@ -2331,6 +2332,7 @@ config RELOCATABLE
  config RANDOMIZE_BASE
  	bool "Randomize the address of the kernel image"
  	select RELOCATABLE
@@ -209,7 +209,7 @@ index 3f93f4eef953..ac3805f359de 100644
  
  #ifdef __AARCH64EB__
 diff --git a/arch/x86/Kconfig b/arch/x86/Kconfig
-index d1c73d5ed32f..4d5c5a6798b4 100644
+index f717d9c93aa2..b6e83b955a0d 100644
 --- a/arch/x86/Kconfig
 +++ b/arch/x86/Kconfig
 @@ -1245,8 +1245,7 @@ config VM86
@@ -358,7 +358,7 @@ index ac41b1e0940d..14cc3f9a5318 100644
  /* Used in PAGE_KERNEL_* macros which are reasonably used out-of-tree: */
  EXPORT_SYMBOL(__default_kernel_pte_mask);
 diff --git a/arch/x86/mm/init_64.c b/arch/x86/mm/init_64.c
-index 63de8dbaa75e..de8091cb0f6e 100644
+index 8971bf1f4d83..0a6b67834159 100644
 --- a/arch/x86/mm/init_64.c
 +++ b/arch/x86/mm/init_64.c
 @@ -104,9 +104,9 @@ static inline pgprot_t prot_sethuge(pgprot_t prot)
@@ -414,7 +414,7 @@ index a45d423ad10f..a4b0a144ec58 100644
  	  Historically the kernel has allowed TIOCSTI, which will push
  	  characters into a controlling TTY. This continues to be used
 diff --git a/drivers/tty/tty_io.c b/drivers/tty/tty_io.c
-index dcb1769c3625..068cd817a0ae 100644
+index 5d372fd7423e..d1e0a86788f5 100644
 --- a/drivers/tty/tty_io.c
 +++ b/drivers/tty/tty_io.c
 @@ -171,6 +171,7 @@ static void free_tty_struct(struct tty_struct *tty)
@@ -454,7 +454,7 @@ index dcb1769c3625..068cd817a0ae 100644
  
  	return tty;
  }
-@@ -3635,6 +3644,15 @@ static struct ctl_table tty_table[] = {
+@@ -3637,6 +3646,15 @@ static struct ctl_table tty_table[] = {
  		.extra1		= SYSCTL_ZERO,
  		.extra2		= SYSCTL_ONE,
  	},
@@ -483,10 +483,10 @@ index ac006abd13b3..9228b9d4b60d 100644
  ifdef CONFIG_USB_ONBOARD_DEV
  usbcore-y			+= ../misc/onboard_usb_dev_pdevs.o
 diff --git a/drivers/usb/core/hub.c b/drivers/usb/core/hub.c
-index 090b3a757112..8c3b07fd87ae 100644
+index 93f8ebdeccfd..9b693235e31a 100644
 --- a/drivers/usb/core/hub.c
 +++ b/drivers/usb/core/hub.c
-@@ -5445,6 +5445,12 @@ static void hub_port_connect(struct usb_hub *hub, int port1, u16 portstatus,
+@@ -5450,6 +5450,12 @@ static void hub_port_connect(struct usb_hub *hub, int port1, u16 portstatus,
  			goto done;
  		return;
  	}
@@ -582,7 +582,7 @@ index 118fa4c93a79..ab81a219c2de 100644
  	usb_debugfs_cleanup();
  	idr_destroy(&usb_bus_idr);
 diff --git a/fs/exec.c b/fs/exec.c
-index 030240d99ab7..5c87a0d795bd 100644
+index 829c74c7690d..f4c7ae5d2922 100644
 --- a/fs/exec.c
 +++ b/fs/exec.c
 @@ -68,6 +68,7 @@
@@ -634,7 +634,7 @@ index 8dabb224f941..c2cae004eaec 100644
  
  static int __init init_fs_inode_sysctls(void)
 diff --git a/fs/namei.c b/fs/namei.c
-index ffa68aa996a2..cbfbf674e47f 100644
+index 5a9fdce08ead..6acd53dc5353 100644
 --- a/fs/namei.c
 +++ b/fs/namei.c
 @@ -1039,10 +1039,10 @@ static inline void put_link(struct nameidata *nd)
@@ -689,10 +689,10 @@ index 2ac67e04a6fb..3340e13c959c 100644
 +
 +	  If unsure, say N.
 diff --git a/fs/overlayfs/super.c b/fs/overlayfs/super.c
-index c3d84eafde9f..a2186edafb00 100644
+index bd0c548cf1ee..1b5ee50f36b3 100644
 --- a/fs/overlayfs/super.c
 +++ b/fs/overlayfs/super.c
-@@ -1483,7 +1483,9 @@ struct file_system_type ovl_fs_type = {
+@@ -1484,7 +1484,9 @@ struct file_system_type ovl_fs_type = {
  	.name			= "overlay",
  	.init_fs_context	= ovl_init_fs_context,
  	.parameters		= ovl_parameter_spec,
@@ -802,10 +802,10 @@ index 767c535dbd38..83bdbefbc0f5 100644
  {
  	return true;
 diff --git a/include/linux/fs.h b/include/linux/fs.h
-index 466a76771b0a..11805b7a22b5 100644
+index 19211eb49a8c..6b23ca9dbeff 100644
 --- a/include/linux/fs.h
 +++ b/include/linux/fs.h
-@@ -3757,4 +3757,15 @@ static inline bool vfs_empty_path(int dfd, const char __user *path)
+@@ -3822,4 +3822,15 @@ static inline bool vfs_empty_path(int dfd, const char __user *path)
  
  int generic_atomic_write_valid(struct kiocb *iocb, struct iov_iter *iter);
  
@@ -822,18 +822,19 @@ index 466a76771b0a..11805b7a22b5 100644
 +
  #endif /* _LINUX_FS_H */
 diff --git a/include/linux/fsnotify.h b/include/linux/fsnotify.h
-index 278620e063ab..2b12a47d7416 100644
+index 8d1849137a96..68a89a8c4920 100644
 --- a/include/linux/fsnotify.h
 +++ b/include/linux/fsnotify.h
-@@ -122,6 +122,8 @@ static inline int fsnotify_file(struct file *file, __u32 mask)
+@@ -124,6 +124,9 @@ static inline int fsnotify_file(struct file *file, __u32 mask)
+ 	if (FMODE_FSNOTIFY_NONE(file->f_mode))
  		return 0;
  
- 	path = &file->f_path;
 +	if (mask & (FS_ACCESS | FS_MODIFY) && is_sidechannel_device(file_inode(file)))
 +		return 0;
- 	/* Permission events require group prio >= FSNOTIFY_PRIO_CONTENT */
- 	if (mask & ALL_FSNOTIFY_PERM_EVENTS &&
- 	    !fsnotify_sb_has_priority_watchers(path->dentry->d_sb,
++
+ 	return fsnotify_path(&file->f_path, mask);
+ }
+ 
 diff --git a/include/linux/highmem.h b/include/linux/highmem.h
 index 3c3f6996f29f..48e7aece6dd2 100644
 --- a/include/linux/highmem.h
@@ -879,10 +880,10 @@ index be707748e7ce..40b0d6710f10 100644
  const struct kobj_ns_type_operations *kobj_child_ns_ops(const struct kobject *parent);
  const struct kobj_ns_type_operations *kobj_ns_ops(const struct kobject *kobj);
 diff --git a/include/linux/perf_event.h b/include/linux/perf_event.h
-index c2bd4bc45a27..3ad1838bb61b 100644
+index 3eaf73af41cd..b5db2e5cbd1d 100644
 --- a/include/linux/perf_event.h
 +++ b/include/linux/perf_event.h
-@@ -1666,6 +1666,14 @@ static inline int perf_is_paranoid(void)
+@@ -1672,6 +1672,14 @@ static inline int perf_is_paranoid(void)
  
  int perf_allow_kernel(struct perf_event_attr *attr);
  
@@ -931,10 +932,10 @@ index 2372f9357240..775cfa9e34cf 100644
  
  /* Each of a tty's open files has private_data pointing to tty_file_private */
 diff --git a/include/linux/usb.h b/include/linux/usb.h
-index 049b012638be..fbaa9834bd71 100644
+index 0012259ac910..2d8d0a8c8802 100644
 --- a/include/linux/usb.h
 +++ b/include/linux/usb.h
-@@ -2066,6 +2066,17 @@ extern void usb_led_activity(enum usb_led_event ev);
+@@ -2067,6 +2067,17 @@ extern void usb_led_activity(enum usb_led_event ev);
  static inline void usb_led_activity(enum usb_led_event ev) {}
  #endif
  
@@ -975,7 +976,7 @@ index 7183e5aca282..56573371a2f8 100644
  {
  	return &init_user_ns;
 diff --git a/include/net/tcp.h b/include/net/tcp.h
-index 5d39b0e8dd90..958b93080254 100644
+index 85f8102aa9da..43288ccd8a3e 100644
 --- a/include/net/tcp.h
 +++ b/include/net/tcp.h
 @@ -261,6 +261,7 @@ static_assert((1 << ATO_BITS) > TCP_DELACK_MAX);
@@ -987,10 +988,10 @@ index 5d39b0e8dd90..958b93080254 100644
  #define TCP_RACK_LOSS_DETECTION  0x1 /* Use RACK to detect losses */
  #define TCP_RACK_STATIC_REO_WND  0x2 /* Use static RACK reo wnd */
 diff --git a/init/Kconfig b/init/Kconfig
-index 53eba5cd88ff..35730e3ad5d6 100644
+index f0e708b4226d..76007d17e258 100644
 --- a/init/Kconfig
 +++ b/init/Kconfig
-@@ -492,6 +492,7 @@ config USELIB
+@@ -495,6 +495,7 @@ config USELIB
  config AUDIT
  	bool "Auditing support"
  	depends on NET
@@ -998,7 +999,7 @@ index 53eba5cd88ff..35730e3ad5d6 100644
  	help
  	  Enable auditing infrastructure that can be used with another
  	  kernel subsystem, such as SELinux (which requires this for
-@@ -1320,6 +1321,22 @@ config USER_NS
+@@ -1323,6 +1324,22 @@ config USER_NS
  
  	  If unsure, say N.
  
@@ -1021,7 +1022,7 @@ index 53eba5cd88ff..35730e3ad5d6 100644
  config PID_NS
  	bool "PID Namespaces"
  	default y
-@@ -1551,9 +1568,8 @@ menuconfig EXPERT
+@@ -1554,9 +1571,8 @@ menuconfig EXPERT
  	  Only use this if you really know what you are doing.
  
  config UID16
@@ -1032,7 +1033,7 @@ index 53eba5cd88ff..35730e3ad5d6 100644
  	help
  	  This enables the legacy 16-bit UID syscall wrappers.
  
-@@ -1582,14 +1598,13 @@ config SGETMASK_SYSCALL
+@@ -1585,14 +1601,13 @@ config SGETMASK_SYSCALL
  	  If unsure, leave the default option here.
  
  config SYSFS_SYSCALL
@@ -1049,7 +1050,7 @@ index 53eba5cd88ff..35730e3ad5d6 100644
  
  config FHANDLE
  	bool "open by fhandle syscalls" if EXPERT
-@@ -1727,8 +1742,7 @@ config SHMEM
+@@ -1730,8 +1745,7 @@ config SHMEM
  	  which may be appropriate on small systems without swap.
  
  config AIO
@@ -1084,7 +1085,7 @@ index 03c6ab505d74..d3bfb5321443 100644
  	},
  	{
 diff --git a/kernel/audit.c b/kernel/audit.c
-index 575f2a5dd5e8..96f2d0afaf2f 100644
+index df279dd2e450..bc9f579087dc 100644
 --- a/kernel/audit.c
 +++ b/kernel/audit.c
 @@ -1747,6 +1747,9 @@ static int __init audit_enable(char *str)
@@ -1128,7 +1129,7 @@ index dac4df77e376..68bb3279b14f 100644
  
  /**
 diff --git a/kernel/events/core.c b/kernel/events/core.c
-index da77f856e1c8..06b61d3b45cd 100644
+index dfbd217fd20c..84b63a14a8c0 100644
 --- a/kernel/events/core.c
 +++ b/kernel/events/core.c
 @@ -462,8 +462,13 @@ static struct kmem_cache *perf_event_cache;
@@ -1145,7 +1146,7 @@ index da77f856e1c8..06b61d3b45cd 100644
  
  /* Minimum for 512 kiB + 1 user control page */
  int sysctl_perf_event_mlock __read_mostly = 512 + (PAGE_SIZE / 1024); /* 'free' kiB per user */
-@@ -12873,7 +12878,7 @@ SYSCALL_DEFINE5(perf_event_open,
+@@ -12887,7 +12892,7 @@ SYSCALL_DEFINE5(perf_event_open,
  		return err;
  
  	/* Do we allow access to perf_event_open(2) ? */
@@ -1155,7 +1156,7 @@ index da77f856e1c8..06b61d3b45cd 100644
  		return err;
  
 diff --git a/kernel/fork.c b/kernel/fork.c
-index 6191f1f8bde8..9119b91b0068 100644
+index c0ecb097aa1d..8d1ad85c1a02 100644
 --- a/kernel/fork.c
 +++ b/kernel/fork.c
 @@ -84,6 +84,7 @@
@@ -1166,7 +1167,7 @@ index 6191f1f8bde8..9119b91b0068 100644
  #include <linux/oom.h>
  #include <linux/khugepaged.h>
  #include <linux/signalfd.h>
-@@ -2176,6 +2177,10 @@ __latent_entropy struct task_struct *copy_process(
+@@ -2177,6 +2178,10 @@ __latent_entropy struct task_struct *copy_process(
  	if ((clone_flags & (CLONE_NEWUSER|CLONE_FS)) == (CLONE_NEWUSER|CLONE_FS))
  		return ERR_PTR(-EINVAL);
  
@@ -1177,7 +1178,7 @@ index 6191f1f8bde8..9119b91b0068 100644
  	/*
  	 * Thread groups must share signals as well, and detached threads
  	 * can only be started up within the thread group.
-@@ -3327,6 +3332,12 @@ int ksys_unshare(unsigned long unshare_flags)
+@@ -3328,6 +3333,12 @@ int ksys_unshare(unsigned long unshare_flags)
  	if (unshare_flags & CLONE_NEWNS)
  		unshare_flags |= CLONE_FS;
  
@@ -1233,7 +1234,7 @@ index 00ff17635041..ab27c6928ba4 100644
  	softirq_vec[nr].action = action;
  }
 diff --git a/kernel/sysctl.c b/kernel/sysctl.c
-index de58128fa521..a3f7df9da787 100644
+index 6a9040fdefe5..e5aa8c0d8d77 100644
 --- a/kernel/sysctl.c
 +++ b/kernel/sysctl.c
 @@ -80,6 +80,9 @@
@@ -1282,7 +1283,7 @@ index de58128fa521..a3f7df9da787 100644
  /**
   * struct do_proc_dointvec_minmax_conv_param - proc_dointvec_minmax() range checking structure
   * @min: pointer to minimum allowable value
-@@ -1535,6 +1567,12 @@ int proc_dou8vec_minmax(const struct ctl_table *table, int write,
+@@ -1513,6 +1545,12 @@ int proc_dou8vec_minmax(const struct ctl_table *table, int write,
  	return -ENOSYS;
  }
  
@@ -1295,7 +1296,7 @@ index de58128fa521..a3f7df9da787 100644
  int proc_dointvec_jiffies(const struct ctl_table *table, int write,
  		    void *buffer, size_t *lenp, loff_t *ppos)
  {
-@@ -1618,6 +1656,17 @@ static struct ctl_table kern_table[] = {
+@@ -1596,6 +1634,17 @@ static struct ctl_table kern_table[] = {
  		.mode		= 0644,
  		.proc_handler	= proc_dointvec,
  	},
@@ -1313,7 +1314,7 @@ index de58128fa521..a3f7df9da787 100644
  #ifdef CONFIG_PROC_SYSCTL
  	{
  		.procname	= "tainted",
-@@ -2254,6 +2303,7 @@ EXPORT_SYMBOL(proc_douintvec);
+@@ -2223,6 +2272,7 @@ EXPORT_SYMBOL(proc_douintvec);
  EXPORT_SYMBOL(proc_dointvec_jiffies);
  EXPORT_SYMBOL(proc_dointvec_minmax);
  EXPORT_SYMBOL_GPL(proc_douintvec_minmax);
@@ -1340,7 +1341,7 @@ index aa0b2e47f2f2..d74d857b1696 100644
  static DEFINE_MUTEX(userns_state_mutex);
  
 diff --git a/lib/Kconfig.debug b/lib/Kconfig.debug
-index ffa3da358353..572cc846d7da 100644
+index 5a6415cfd828..eda30c736e3b 100644
 --- a/lib/Kconfig.debug
 +++ b/lib/Kconfig.debug
 @@ -512,6 +512,9 @@ config SECTION_MISMATCH_WARN_ONLY
@@ -1448,7 +1449,7 @@ index 511c55d7b3ab..bcfa44498da1 100644
  static noinline_for_stack
  char *restricted_pointer(char *buf, char *end, const void *ptr,
 diff --git a/mm/Kconfig b/mm/Kconfig
-index 763a9105ee18..62730c654221 100644
+index 620d33330f79..924085c4226d 100644
 --- a/mm/Kconfig
 +++ b/mm/Kconfig
 @@ -257,7 +257,6 @@ config SLUB_TINY
@@ -1516,7 +1517,7 @@ index 763a9105ee18..62730c654221 100644
  	help
  	  Randomizing heap placement makes heap exploits harder, but it
  	  also breaks ancient binaries (including anything libc5 based).
-@@ -743,7 +760,8 @@ config KSM
+@@ -786,7 +803,8 @@ config KSM
  config DEFAULT_MMAP_MIN_ADDR
  	int "Low address space to protect from user allocation"
  	depends on MMU
@@ -1527,7 +1528,7 @@ index 763a9105ee18..62730c654221 100644
  	  This is the portion of low virtual memory which should be protected
  	  from userspace allocation.  Keeping a user from writing to low pages
 diff --git a/mm/Kconfig.debug b/mm/Kconfig.debug
-index 41a58536531d..329a6e4b6271 100644
+index 32b65073d0cc..614bb7f4793f 100644
 --- a/mm/Kconfig.debug
 +++ b/mm/Kconfig.debug
 @@ -47,7 +47,7 @@ config DEBUG_PAGEALLOC_ENABLE_DEFAULT
@@ -1539,28 +1540,14 @@ index 41a58536531d..329a6e4b6271 100644
  	depends on SYSFS && !SLUB_TINY
  	select STACKDEPOT if STACKTRACE_SUPPORT
  	help
-@@ -188,6 +188,7 @@ config DEBUG_WX
- 	depends on ARCH_HAS_DEBUG_WX
+@@ -189,6 +189,7 @@ config DEBUG_WX
+ 	depends on ARCH_HAS_PTDUMP
  	depends on MMU
- 	select PTDUMP_CORE
+ 	select PTDUMP
 +	default y
  	help
  	  Generate a warning if any W+X mappings are found at boot.
  
-diff --git a/mm/internal.h b/mm/internal.h
-index 3bfc1dc2d7ea..8af3a41f6cfe 100644
---- a/mm/internal.h
-+++ b/mm/internal.h
-@@ -705,6 +705,9 @@ static inline struct folio *page_rmappable_folio(struct page *page)
- 	return folio;
- }
- 
-+extern void __init __gather_extra_latent_entropy(struct page *page,
-+						 unsigned int nr_pages);
-+
- static inline void prep_compound_head(struct page *page, unsigned int order)
- {
- 	struct folio *folio = (struct folio *)page;
 diff --git a/mm/kfence/report.c b/mm/kfence/report.c
 index 6370c5207d1a..f55519f53c94 100644
 --- a/mm/kfence/report.c
@@ -1584,34 +1571,6 @@ index 6370c5207d1a..f55519f53c94 100644
  	check_panic_on_warn("KFENCE");
  
  	/* We encountered a memory safety error, taint the kernel! */
-diff --git a/mm/mm_init.c b/mm/mm_init.c
-index 1450b2bb98ee..aec674d5fe72 100644
---- a/mm/mm_init.c
-+++ b/mm/mm_init.c
-@@ -1935,6 +1935,7 @@ static void __init deferred_free_pages(unsigned long pfn,
- 	if (nr_pages == MAX_ORDER_NR_PAGES && IS_MAX_ORDER_ALIGNED(pfn)) {
- 		for (i = 0; i < nr_pages; i += pageblock_nr_pages)
- 			set_pageblock_migratetype(page + i, MIGRATE_MOVABLE);
-+		__gather_extra_latent_entropy(page, 1 << MAX_PAGE_ORDER);
- 		__free_pages_core(page, MAX_PAGE_ORDER, MEMINIT_EARLY);
- 		return;
- 	}
-@@ -1945,6 +1946,7 @@ static void __init deferred_free_pages(unsigned long pfn,
- 	for (i = 0; i < nr_pages; i++, page++, pfn++) {
- 		if (pageblock_aligned(pfn))
- 			set_pageblock_migratetype(page, MIGRATE_MOVABLE);
-+		__gather_extra_latent_entropy(page, 1);
- 		__free_pages_core(page, 0, MEMINIT_EARLY);
- 	}
- }
-@@ -2463,6 +2465,7 @@ void __init memblock_free_pages(struct page *page, unsigned long pfn,
- 
- 	/* pages were reserved and not allocated */
- 	clear_page_tag_ref(page);
-+	__gather_extra_latent_entropy(page, 1 << order);
- 	__free_pages_core(page, order, MEMINIT_EARLY);
- }
- 
 diff --git a/mm/mmap.c b/mm/mmap.c
 index 2d69552e6be3..2f706a010b3f 100644
 --- a/mm/mmap.c
@@ -1631,7 +1590,7 @@ index 2d69552e6be3..2f706a010b3f 100644
  		mm->brk = brk;
  		goto success;
 diff --git a/mm/page_alloc.c b/mm/page_alloc.c
-index 259249a37faf..f73df3848b14 100644
+index d8209a512019..50d94adcd2bd 100644
 --- a/mm/page_alloc.c
 +++ b/mm/page_alloc.c
 @@ -210,6 +210,15 @@ EXPORT_PER_CPU_SYMBOL(_numa_mem_);
@@ -1650,33 +1609,29 @@ index 259249a37faf..f73df3848b14 100644
  #ifdef CONFIG_GCC_PLUGIN_LATENT_ENTROPY
  volatile unsigned long latent_entropy __latent_entropy;
  EXPORT_SYMBOL(latent_entropy);
-@@ -1307,6 +1316,25 @@ static void __free_pages_ok(struct page *page, unsigned int order,
- 		free_one_page(zone, page, pfn, order, fpi_flags);
- }
+@@ -1348,6 +1357,21 @@ void __meminit __free_pages_core(struct page *page, unsigned int order,
+ 			set_page_count(p, 0);
+ 		}
  
-+void __init __gather_extra_latent_entropy(struct page *page,
-+					  unsigned int nr_pages)
-+{
-+	if (extra_latent_entropy && !PageHighMem(page) && page_to_pfn(page) < 0x100000) {
-+		unsigned long hash = 0;
-+		size_t index, end = PAGE_SIZE * nr_pages / sizeof hash;
-+		const unsigned long *data = lowmem_page_address(page);
++		if (extra_latent_entropy && !PageHighMem(page) && page_to_pfn(page) < 0x100000) {
++			unsigned long hash = 0;
++			size_t index, end = PAGE_SIZE * nr_pages / sizeof hash;
++			const unsigned long *data = lowmem_page_address(page);
 +
-+		for (index = 0; index < end; index++)
-+			hash ^= hash + data[index];
++			for (index = 0; index < end; index++)
++				hash ^= hash + data[index];
 +#ifdef CONFIG_GCC_PLUGIN_LATENT_ENTROPY
-+		latent_entropy ^= hash;
-+		add_device_randomness((const void *)&latent_entropy, sizeof(latent_entropy));
++			latent_entropy ^= hash;
++			add_device_randomness((const void *)&latent_entropy, sizeof(latent_entropy));
 +#else
-+		add_device_randomness((const void *)&hash, sizeof(hash));
++			add_device_randomness((const void *)&hash, sizeof(hash));
 +#endif
-+	}
-+}
++		}
 +
- void __meminit __free_pages_core(struct page *page, unsigned int order,
- 		enum meminit_context context)
- {
-@@ -1554,6 +1582,12 @@ inline void post_alloc_hook(struct page *page, unsigned int order,
+ 		/* memblock adjusts totalram_pages() manually. */
+ 		atomic_long_add(nr_pages, &page_zone(page)->managed_pages);
+ 	}
+@@ -1559,6 +1583,12 @@ inline void post_alloc_hook(struct page *page, unsigned int order,
  	 */
  	kernel_unpoison_pages(page, 1 << order);
  
@@ -1690,10 +1645,10 @@ index 259249a37faf..f73df3848b14 100644
  	 * As memory initialization might be integrated into KASAN,
  	 * KASAN unpoisoning and memory initializion code must be
 diff --git a/mm/slab.h b/mm/slab.h
-index b65d2462b3fd..4c9721bd48e1 100644
+index ca817db64a17..16a27ec863ca 100644
 --- a/mm/slab.h
 +++ b/mm/slab.h
-@@ -291,6 +291,11 @@ struct kmem_cache {
+@@ -292,6 +292,11 @@ struct kmem_cache {
  	unsigned long random;
  #endif
  
@@ -1705,7 +1660,7 @@ index b65d2462b3fd..4c9721bd48e1 100644
  #ifdef CONFIG_NUMA
  	/*
  	 * Defragmentation by allocating from a remote node.
-@@ -627,7 +632,7 @@ static inline size_t slab_ksize(const struct kmem_cache *s)
+@@ -650,7 +655,7 @@ static inline size_t slab_ksize(const struct kmem_cache *s)
  	 * back there or track user information then we can
  	 * only use the space before that information.
  	 */
@@ -1714,7 +1669,7 @@ index b65d2462b3fd..4c9721bd48e1 100644
  		return s->inuse;
  	/*
  	 * Else we can use all the padding etc for the allocation
-@@ -662,8 +667,10 @@ static inline bool slab_want_init_on_alloc(gfp_t flags, struct kmem_cache *c)
+@@ -685,8 +690,10 @@ static inline bool slab_want_init_on_alloc(gfp_t flags, struct kmem_cache *c)
  {
  	if (static_branch_maybe(CONFIG_INIT_ON_ALLOC_DEFAULT_ON,
  				&init_on_alloc)) {
@@ -1725,7 +1680,7 @@ index b65d2462b3fd..4c9721bd48e1 100644
  		if (c->flags & (SLAB_TYPESAFE_BY_RCU | SLAB_POISON))
  			return flags & __GFP_ZERO;
  		return true;
-@@ -674,9 +681,15 @@ static inline bool slab_want_init_on_alloc(gfp_t flags, struct kmem_cache *c)
+@@ -697,9 +704,15 @@ static inline bool slab_want_init_on_alloc(gfp_t flags, struct kmem_cache *c)
  static inline bool slab_want_init_on_free(struct kmem_cache *c)
  {
  	if (static_branch_maybe(CONFIG_INIT_ON_FREE_DEFAULT_ON,
@@ -1745,7 +1700,7 @@ index b65d2462b3fd..4c9721bd48e1 100644
  }
  
 diff --git a/mm/slab_common.c b/mm/slab_common.c
-index 477fa471da18..83899e7963ea 100644
+index 2e32712b65fa..2675747248d4 100644
 --- a/mm/slab_common.c
 +++ b/mm/slab_common.c
 @@ -35,10 +35,10 @@
@@ -1771,7 +1726,7 @@ index 477fa471da18..83899e7963ea 100644
  static int __init setup_slab_nomerge(char *str)
  {
 diff --git a/mm/slub.c b/mm/slub.c
-index cf678f461725..3cad02239709 100644
+index aeb9fdd76ef9..6f283c835e01 100644
 --- a/mm/slub.c
 +++ b/mm/slub.c
 @@ -39,6 +39,7 @@
@@ -1795,7 +1750,7 @@ index cf678f461725..3cad02239709 100644
  void *fixup_red_left(struct kmem_cache *s, void *p)
  {
  	if (kmem_cache_debug_flags(s, SLAB_RED_ZONE))
-@@ -776,6 +783,8 @@ static inline void set_orig_size(struct kmem_cache *s,
+@@ -779,6 +786,8 @@ static inline void set_orig_size(struct kmem_cache *s,
  		orig_size = kasan_meta_size;
  
  	p += get_info_end(s);
@@ -1804,7 +1759,7 @@ index cf678f461725..3cad02239709 100644
  	p += sizeof(struct track) * 2;
  
  	*(unsigned long *)p = orig_size;
-@@ -789,11 +798,40 @@ static inline unsigned long get_orig_size(struct kmem_cache *s, void *object)
+@@ -792,11 +801,40 @@ static inline unsigned long get_orig_size(struct kmem_cache *s, void *object)
  		return s->object_size;
  
  	p += get_info_end(s);
@@ -1845,7 +1800,7 @@ index cf678f461725..3cad02239709 100644
  #ifdef CONFIG_SLUB_DEBUG
  static unsigned long object_map[BITS_TO_LONGS(MAX_OBJS_PER_PAGE)];
  static DEFINE_SPINLOCK(object_map_lock);
-@@ -865,13 +903,13 @@ static inline void *restore_red_left(struct kmem_cache *s, void *p)
+@@ -868,13 +906,13 @@ static inline void *restore_red_left(struct kmem_cache *s, void *p)
   * Debug settings:
   */
  #if defined(CONFIG_SLUB_DEBUG_ON)
@@ -1863,7 +1818,7 @@ index cf678f461725..3cad02239709 100644
  
  /*
   * slub is about to manipulate internal object metadata.  This memory lies
-@@ -931,6 +969,9 @@ static struct track *get_track(struct kmem_cache *s, void *object,
+@@ -934,6 +972,9 @@ static struct track *get_track(struct kmem_cache *s, void *object,
  
  	p = object + get_info_end(s);
  
@@ -1873,7 +1828,7 @@ index cf678f461725..3cad02239709 100644
  	return kasan_reset_tag(p + alloc);
  }
  
-@@ -1092,6 +1133,9 @@ static void print_trailer(struct kmem_cache *s, struct slab *slab, u8 *p)
+@@ -1095,6 +1136,9 @@ static void print_trailer(struct kmem_cache *s, struct slab *slab, u8 *p)
  
  	off = get_info_end(s);
  
@@ -1883,7 +1838,7 @@ index cf678f461725..3cad02239709 100644
  	if (s->flags & SLAB_STORE_USER)
  		off += 2 * sizeof(struct track);
  
-@@ -1267,9 +1311,10 @@ check_bytes_and_report(struct kmem_cache *s, struct slab *slab,
+@@ -1270,9 +1314,10 @@ check_bytes_and_report(struct kmem_cache *s, struct slab *slab,
   * 	Meta data starts here.
   *
   * 	A. Free pointer (if we cannot overwrite object on free)
@@ -1897,7 +1852,7 @@ index cf678f461725..3cad02239709 100644
   * 		one word if debugging is on to be able to detect writes
   * 		before the word boundary.
   *
-@@ -1287,6 +1332,9 @@ static int check_pad_bytes(struct kmem_cache *s, struct slab *slab, u8 *p)
+@@ -1290,6 +1335,9 @@ static int check_pad_bytes(struct kmem_cache *s, struct slab *slab, u8 *p)
  {
  	unsigned long off = get_info_end(s);	/* The end of info */
  
@@ -1907,7 +1862,7 @@ index cf678f461725..3cad02239709 100644
  	if (s->flags & SLAB_STORE_USER) {
  		/* We also have user information there */
  		off += 2 * sizeof(struct track);
-@@ -2310,11 +2358,19 @@ struct rcu_delayed_free {
+@@ -2325,11 +2373,19 @@ struct rcu_delayed_free {
   */
  static __always_inline
  bool slab_free_hook(struct kmem_cache *s, void *x, bool init,
@@ -1928,7 +1883,7 @@ index cf678f461725..3cad02239709 100644
  	kmemleak_free_recursive(x, s->flags);
  	kmsan_slab_free(s, x);
  
-@@ -2380,15 +2436,28 @@ bool slab_free_hook(struct kmem_cache *s, void *x, bool init,
+@@ -2395,15 +2451,28 @@ bool slab_free_hook(struct kmem_cache *s, void *x, bool init,
  		if (!kasan_has_integrated_init())
  			memset(kasan_reset_tag(x), 0, orig_size);
  		rsize = (s->flags & SLAB_RED_ZONE) ? s->red_left_pad : 0;
@@ -1957,7 +1912,7 @@ index cf678f461725..3cad02239709 100644
  	/* KASAN might put x into memory quarantine, delaying its reuse. */
  	return !kasan_slab_free(s, x, init, still_accessible);
  }
-@@ -2404,7 +2473,7 @@ bool slab_free_freelist_hook(struct kmem_cache *s, void **head, void **tail,
+@@ -2419,7 +2488,7 @@ bool slab_free_freelist_hook(struct kmem_cache *s, void **head, void **tail,
  	bool init;
  
  	if (is_kfence_address(next)) {
@@ -1966,7 +1921,7 @@ index cf678f461725..3cad02239709 100644
  		return false;
  	}
  
-@@ -2419,7 +2488,7 @@ bool slab_free_freelist_hook(struct kmem_cache *s, void **head, void **tail,
+@@ -2434,7 +2503,7 @@ bool slab_free_freelist_hook(struct kmem_cache *s, void **head, void **tail,
  		next = get_freepointer(s, object);
  
  		/* If object's reuse doesn't have to be delayed */
@@ -1975,7 +1930,7 @@ index cf678f461725..3cad02239709 100644
  			/* Move object to the new freelist */
  			set_freepointer(s, object, *head);
  			*head = object;
-@@ -2431,6 +2500,22 @@ bool slab_free_freelist_hook(struct kmem_cache *s, void **head, void **tail,
+@@ -2446,6 +2515,22 @@ bool slab_free_freelist_hook(struct kmem_cache *s, void **head, void **tail,
  			 * accordingly if object's reuse is delayed.
  			 */
  			--(*cnt);
@@ -1998,7 +1953,7 @@ index cf678f461725..3cad02239709 100644
  		}
  	} while (object != old_tail);
  
-@@ -2440,8 +2525,9 @@ bool slab_free_freelist_hook(struct kmem_cache *s, void **head, void **tail,
+@@ -2455,8 +2540,9 @@ bool slab_free_freelist_hook(struct kmem_cache *s, void **head, void **tail,
  static void *setup_object(struct kmem_cache *s, void *object)
  {
  	setup_object_debug(s, object);
@@ -2009,7 +1964,7 @@ index cf678f461725..3cad02239709 100644
  		kasan_unpoison_new_object(s, object);
  		s->ctor(object);
  		kasan_poison_new_object(s, object);
-@@ -4151,6 +4237,8 @@ bool slab_post_alloc_hook(struct kmem_cache *s, struct list_lru *lru,
+@@ -4183,6 +4269,8 @@ bool slab_post_alloc_hook(struct kmem_cache *s, struct list_lru *lru,
  		if (p[i] && init && (!kasan_init ||
  				     !kasan_has_integrated_init()))
  			memset(p[i], 0, zero_size);
@@ -2018,7 +1973,7 @@ index cf678f461725..3cad02239709 100644
  		kmemleak_alloc_recursive(p[i], s->object_size, 1,
  					 s->flags, init_flags);
  		kmsan_slab_alloc(s, p[i], init_flags);
-@@ -4187,7 +4275,24 @@ static __fastpath_inline void *slab_alloc_node(struct kmem_cache *s, struct list
+@@ -4219,7 +4307,24 @@ static __fastpath_inline void *slab_alloc_node(struct kmem_cache *s, struct list
  	object = __slab_alloc_node(s, gfpflags, node, addr, orig_size);
  
  	maybe_wipe_obj_freeptr(s, object);
@@ -2044,7 +1999,7 @@ index cf678f461725..3cad02239709 100644
  
  out:
  	/*
-@@ -4647,10 +4752,16 @@ static __fastpath_inline
+@@ -4679,10 +4784,16 @@ static __fastpath_inline
  void slab_free(struct kmem_cache *s, struct slab *slab, void *object,
  	       unsigned long addr)
  {
@@ -2062,7 +2017,7 @@ index cf678f461725..3cad02239709 100644
  		do_slab_free(s, slab, object, object, 1, addr);
  }
  
-@@ -4659,11 +4770,16 @@ void slab_free(struct kmem_cache *s, struct slab *slab, void *object,
+@@ -4691,11 +4802,16 @@ void slab_free(struct kmem_cache *s, struct slab *slab, void *object,
  static noinline
  void memcg_alloc_abort_single(struct kmem_cache *s, void *object)
  {
@@ -2080,7 +2035,7 @@ index cf678f461725..3cad02239709 100644
  		do_slab_free(s, slab, object, object, 1, _RET_IP_);
  }
  #endif
-@@ -4704,7 +4820,7 @@ static void slab_free_after_rcu_debug(struct rcu_head *rcu_head)
+@@ -4736,7 +4852,7 @@ static void slab_free_after_rcu_debug(struct rcu_head *rcu_head)
  		return;
  
  	/* resume freeing */
@@ -2089,7 +2044,7 @@ index cf678f461725..3cad02239709 100644
  		do_slab_free(s, slab, object, object, 1, _THIS_IP_);
  }
  #endif /* CONFIG_SLUB_RCU_DEBUG */
-@@ -4721,8 +4837,12 @@ static inline struct kmem_cache *virt_to_cache(const void *obj)
+@@ -4753,8 +4869,12 @@ static inline struct kmem_cache *virt_to_cache(const void *obj)
  	struct slab *slab;
  
  	slab = virt_to_slab(obj);
@@ -2102,7 +2057,7 @@ index cf678f461725..3cad02239709 100644
  	return slab->slab_cache;
  }
  
-@@ -4735,10 +4855,15 @@ static inline struct kmem_cache *cache_from_obj(struct kmem_cache *s, void *x)
+@@ -4767,10 +4887,15 @@ static inline struct kmem_cache *cache_from_obj(struct kmem_cache *s, void *x)
  		return s;
  
  	cachep = virt_to_cache(x);
@@ -2121,7 +2076,7 @@ index cf678f461725..3cad02239709 100644
  	return cachep;
  }
  
-@@ -4764,8 +4889,12 @@ static void free_large_kmalloc(struct folio *folio, void *object)
+@@ -4796,8 +4921,12 @@ static void free_large_kmalloc(struct folio *folio, void *object)
  {
  	unsigned int order = folio_order(folio);
  
@@ -2134,7 +2089,7 @@ index cf678f461725..3cad02239709 100644
  
  	kmemleak_free(object);
  	kasan_kfree_large(object);
-@@ -4935,7 +5064,7 @@ int __kmem_cache_alloc_bulk(struct kmem_cache *s, gfp_t flags, size_t size,
+@@ -4967,7 +5096,7 @@ int __kmem_cache_alloc_bulk(struct kmem_cache *s, gfp_t flags, size_t size,
  {
  	struct kmem_cache_cpu *c;
  	unsigned long irqflags;
@@ -2143,7 +2098,7 @@ index cf678f461725..3cad02239709 100644
  
  	/*
  	 * Drain objects in the per cpu slab, while disabling local
-@@ -4991,6 +5120,28 @@ int __kmem_cache_alloc_bulk(struct kmem_cache *s, gfp_t flags, size_t size,
+@@ -5023,6 +5152,28 @@ int __kmem_cache_alloc_bulk(struct kmem_cache *s, gfp_t flags, size_t size,
  	local_unlock_irqrestore(&s->cpu_slab->lock, irqflags);
  	slub_put_cpu_ptr(s->cpu_slab);
  
@@ -2172,7 +2127,7 @@ index cf678f461725..3cad02239709 100644
  	return i;
  
  error:
-@@ -5034,6 +5185,7 @@ int kmem_cache_alloc_bulk_noprof(struct kmem_cache *s, gfp_t flags, size_t size,
+@@ -5066,6 +5217,7 @@ int kmem_cache_alloc_bulk_noprof(struct kmem_cache *s, gfp_t flags, size_t size,
  				 void **p)
  {
  	int i;
@@ -2180,7 +2135,7 @@ index cf678f461725..3cad02239709 100644
  
  	if (!size)
  		return 0;
-@@ -5050,8 +5202,11 @@ int kmem_cache_alloc_bulk_noprof(struct kmem_cache *s, gfp_t flags, size_t size,
+@@ -5082,8 +5234,11 @@ int kmem_cache_alloc_bulk_noprof(struct kmem_cache *s, gfp_t flags, size_t size,
  	 * memcg and kmem_cache debug support and memory initialization.
  	 * Done outside of the IRQ disabled fastpath loop.
  	 */
@@ -2193,7 +2148,7 @@ index cf678f461725..3cad02239709 100644
  		return 0;
  	}
  	return i;
-@@ -5078,10 +5233,10 @@ EXPORT_SYMBOL(kmem_cache_alloc_bulk_noprof);
+@@ -5110,10 +5265,10 @@ EXPORT_SYMBOL(kmem_cache_alloc_bulk_noprof);
   * and increases the number of allocations possible without having to
   * take the list_lock.
   */
@@ -2207,7 +2162,7 @@ index cf678f461725..3cad02239709 100644
  
  /*
   * Calculate the order of allocation given an slab object size.
-@@ -5263,6 +5418,7 @@ static void early_kmem_cache_node_alloc(int node)
+@@ -5295,6 +5450,7 @@ static void early_kmem_cache_node_alloc(int node)
  #ifdef CONFIG_SLUB_DEBUG
  	init_object(kmem_cache_node, n, SLUB_RED_ACTIVE);
  #endif
@@ -2215,7 +2170,7 @@ index cf678f461725..3cad02239709 100644
  	n = kasan_slab_alloc(kmem_cache_node, n, GFP_KERNEL, false);
  	slab->freelist = get_freepointer(kmem_cache_node, n);
  	slab->inuse = 1;
-@@ -5433,6 +5589,9 @@ static int calculate_sizes(struct kmem_cache_args *args, struct kmem_cache *s)
+@@ -5467,6 +5623,9 @@ static int calculate_sizes(struct kmem_cache_args *args, struct kmem_cache *s)
  		s->offset = ALIGN_DOWN(s->object_size / 2, sizeof(void *));
  	}
  
@@ -2225,7 +2180,7 @@ index cf678f461725..3cad02239709 100644
  #ifdef CONFIG_SLUB_DEBUG
  	if (flags & SLAB_STORE_USER) {
  		/*
-@@ -5721,6 +5880,10 @@ void __check_heap_object(const void *ptr, unsigned long n,
+@@ -5755,6 +5914,10 @@ void __check_heap_object(const void *ptr, unsigned long n,
  		offset -= s->red_left_pad;
  	}
  
@@ -2236,7 +2191,7 @@ index cf678f461725..3cad02239709 100644
  	/* Allow address range falling entirely within usercopy region. */
  	if (offset >= s->useroffset &&
  	    offset - s->useroffset <= s->usersize &&
-@@ -6066,6 +6229,10 @@ int do_kmem_cache_create(struct kmem_cache *s, const char *name,
+@@ -6076,6 +6239,10 @@ int do_kmem_cache_create(struct kmem_cache *s, const char *name,
  	s->flags = kmem_cache_flags(flags, s->name);
  #ifdef CONFIG_SLAB_FREELIST_HARDENED
  	s->random = get_random_long();
@@ -2303,10 +2258,10 @@ index 4cfd87b28c04..0669d8e39c00 100644
 +
 +	  If unsure, say N.
 diff --git a/net/ipv4/sysctl_net_ipv4.c b/net/ipv4/sysctl_net_ipv4.c
-index 63625a5038af..7b0822143f38 100644
+index 00d3be968a53..4c1cc3e9941f 100644
 --- a/net/ipv4/sysctl_net_ipv4.c
 +++ b/net/ipv4/sysctl_net_ipv4.c
-@@ -617,6 +617,15 @@ static struct ctl_table ipv4_table[] = {
+@@ -619,6 +619,15 @@ static struct ctl_table ipv4_table[] = {
  		.extra1		= &sysctl_fib_sync_mem_min,
  		.extra2		= &sysctl_fib_sync_mem_max,
  	},
@@ -2323,7 +2278,7 @@ index 63625a5038af..7b0822143f38 100644
  
  static struct ctl_table ipv4_net_table[] = {
 diff --git a/net/ipv4/tcp_input.c b/net/ipv4/tcp_input.c
-index e57917aefd50..b2c1762beba3 100644
+index c3aeb985f819..36035b3ccc8b 100644
 --- a/net/ipv4/tcp_input.c
 +++ b/net/ipv4/tcp_input.c
 @@ -83,6 +83,7 @@
@@ -2334,7 +2289,7 @@ index e57917aefd50..b2c1762beba3 100644
  
  #define FLAG_DATA		0x01 /* Incoming frame contained data.		*/
  #define FLAG_WIN_UPDATE		0x02 /* Incoming ACK was a window update.	*/
-@@ -6621,7 +6622,7 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
+@@ -6652,7 +6653,7 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
  		SKB_DR_SET(reason, TCP_RFC7323_PAWS);
  		goto discard_and_undo;
  	}
@@ -2372,7 +2327,7 @@ index e383cda05367..929997fb5e45 100644
  	  secure!
  
 diff --git a/scripts/mod/modpost.c b/scripts/mod/modpost.c
-index 07e8a4eb71d0..59c9b219db5d 100644
+index 86f80b55278f..b01d138894a4 100644
 --- a/scripts/mod/modpost.c
 +++ b/scripts/mod/modpost.c
 @@ -42,6 +42,8 @@ static bool sec_mismatch_warn_only = true;
@@ -2432,7 +2387,7 @@ index 07e8a4eb71d0..59c9b219db5d 100644
  	}
  }
  
-@@ -2134,7 +2154,7 @@ int main(int argc, char **argv)
+@@ -2143,7 +2163,7 @@ int main(int argc, char **argv)
  	LIST_HEAD(dump_lists);
  	struct dump_list *dl, *dl2;
  
@@ -2441,7 +2396,7 @@ index 07e8a4eb71d0..59c9b219db5d 100644
  		switch (opt) {
  		case 'e':
  			external_module = true;
-@@ -2144,6 +2164,9 @@ int main(int argc, char **argv)
+@@ -2153,6 +2173,9 @@ int main(int argc, char **argv)
  			dl->file = optarg;
  			list_add_tail(&dl->list, &dump_lists);
  			break;
@@ -2451,7 +2406,7 @@ index 07e8a4eb71d0..59c9b219db5d 100644
  		case 'M':
  			module_enabled = true;
  			break;
-@@ -2236,5 +2259,11 @@ int main(int argc, char **argv)
+@@ -2245,5 +2268,11 @@ int main(int argc, char **argv)
  		warn("suppressed %u unresolved symbol warnings because there were too many)\n",
  		     nr_unresolved - MAX_UNRESOLVED_REPORTS);
  
@@ -2606,7 +2561,7 @@ index 61abc1e094a8..ceda05c0c4f6 100644
  	  This selects Security-Enhanced Linux (SELinux).
  	  You will also need a policy configuration and a labeled filesystem.
 diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c
-index cd60ece2fd58..9f3977ff0aea 100644
+index 3543c4fddb05..49ff07c8e0d6 100644
 --- a/security/selinux/hooks.c
 +++ b/security/selinux/hooks.c
 @@ -140,18 +140,6 @@ static int __init selinux_enabled_setup(char *str)
@@ -2680,7 +2635,7 @@ index 4fe3b8b1958f..a7d88cc23a70 100644
     in /etc/sysctl.conf (e.g. kernel.perf_event_paranoid = <setting>)
  
 diff --git a/tools/perf/util/evsel.c b/tools/perf/util/evsel.c
-index 6e8d70ec05ba..2c47f911f64c 100644
+index 37b9196dbaa3..aff3b9eeabff 100644
 --- a/tools/perf/util/evsel.c
 +++ b/tools/perf/util/evsel.c
 @@ -3386,6 +3386,7 @@ int evsel__open_strerror(struct evsel *evsel, struct target *target,

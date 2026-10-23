@@ -35,22 +35,45 @@ plain() {
  echo -e "$1" >&2
 }
 
+# Discard anything typed while the previous step was running, so that stray
+# keypresses during a long build don't get eaten by the next prompt.
+_flush_stdin() {
+  [ -t 0 ] || return 0
+  local _discard
+  while read -r -t 0; do
+    read -r _discard || break
+  done
+}
+
+# Set optional CPU and I/O priorities for the current build shell.
+_run_schedtool() {
+  if command -v schedtool >/dev/null 2>&1; then
+    msg2 "Using schedtool"
+    schedtool -B -n 1 "$BASHPID" >/dev/null 2>&1 || :
+  fi
+  if command -v ionice >/dev/null 2>&1; then
+    ionice -n 1 -p "$BASHPID" >/dev/null 2>&1 || :
+  fi
+}
+
 ####################################################################
 
 ################### Config sourcing
+
+source linux-tkg-config/prepare
+aggregate_user_config
+source "$_where/BIG_UGLY_FROGMINER"
 
 if which script &> /dev/null && [[ "$_logging_use_script" =~ ^(Y|y|Yes|yes)$ && -z "$SCRIPT" ]]; then
   # using script is enabled, but we are not within the script sub-command
   export SCRIPT=1
   msg2 "Using script"
+  trap - EXIT
   script -q -e -c "$0 $@" shell-output.log
   exit
 fi
 
-source linux-tkg-config/prepare
 _frog_banner
-aggregate_user_config
-source "$_where/BIG_UGLY_FROGMINER"
 
 ####################################################################
 
@@ -180,10 +203,6 @@ if [ "$1" = "install" ]; then
     _kernel_subver="${_sub}"
   fi
 
-  #_timed_build() {
-    #_runtime=$( time ( schedtool -B -n 1 -e ionice -n 1 "$@" 2>&1 ) 3>&1 1>&2 2>&3 ) || _runtime=$( time ( "$@" 2>&1 ) 3>&1 1>&2 2>&3 ) - Bash 5.2 is broken https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1018727
-  #}
-
   cd "$_kernel_work_folder_abs"
 
   msg2 "Add patched files to the diff.patch"
@@ -196,7 +215,11 @@ if [ "$1" = "install" ]; then
   if [[ "$_distro" =~ ^(Ubuntu|Debian)$ ]]; then
 
     msg2 "Building kernel DEB packages"
-    make ${llvm_opt} -j ${_thread_num} bindeb-pkg LOCALVERSION=-${_kernel_flavor}
+    (
+      _run_schedtool
+      set -o pipefail
+      time make ${llvm_opt} -j ${_thread_num} bindeb-pkg LOCALVERSION=-${_kernel_flavor} |& tee "$_where/logs/build.log.txt"
+    )
     msg2 "Building successfully finished!"
 
     # Create DEBS folder if it doesn't exist
@@ -214,6 +237,7 @@ if [ "$1" = "install" ]; then
     fi
 
     if [[ "$_install_after_building" = "prompt" ]]; then
+      _flush_stdin
       read -p "Do you want to install the new Kernel ? [N]/y: " _install
     fi
 
@@ -247,7 +271,11 @@ if [ "$1" = "install" ]; then
 
     msg2 "Building kernel RPM packages"
     export RPMOPTS="--define '_topdir ${_fedora_work_dir}' --define 'install_mod_strip 1'"
-    make ${llvm_opt} -j ${_thread_num} binrpm-pkg LOCALVERSION="${_extra_ver_str}"
+    (
+      _run_schedtool
+      set -o pipefail
+      time make ${llvm_opt} -j ${_thread_num} binrpm-pkg LOCALVERSION="${_extra_ver_str}" |& tee "$_where/logs/build.log.txt"
+    )
     msg2 "Building successfully finished!"
 
     # Create RPMS folder if it doesn't exist
@@ -265,6 +293,7 @@ if [ "$1" = "install" ]; then
     fi
 
     if [[ "$_install_after_building" = "prompt" ]]; then
+      _flush_stdin
       read -p "Do you want to install the new Kernel ? [N]/y: " _install
     fi
 
@@ -294,6 +323,7 @@ if [ "$1" = "install" ]; then
         warning "By default, system kernel updates will overwrite your custom kernel."
         warning "Adding a lock will prevent this but skip system kernel updates."
         msg2 "You can remove the lock if needed with 'sudo zypper removelock kernel-default-devel kernel-default kernel-devel kernel-syms'"
+        _flush_stdin
         read -p "Would you like to lock system kernel packages ? [N]/y: " _lock
         if [[ "$_lock" =~ ^(Y|y|Yes|yes)$ ]]; then
           sudo zypper addlock kernel-default-devel kernel-default kernel-devel kernel-syms
@@ -321,7 +351,11 @@ if [ "$1" = "install" ]; then
     fi
 
     msg2 "Building kernel"
-    make ${llvm_opt} -j ${_thread_num}
+    (
+      _run_schedtool
+      set -o pipefail
+      time make ${llvm_opt} -j ${_thread_num} |& tee "$_where/logs/build.log.txt"
+    )
     msg2 "Build successful"
 
     if [ "$_STRIP" = "true" ]; then
@@ -366,6 +400,7 @@ if [ "$1" = "install" ]; then
     echo "    sudo make install"
 
     msg2 "Note: Uninstalling requires manual intervention, use './install.sh uninstall-help' for more information."
+    _flush_stdin
     read -p "Continue ? [N]/y: " _continue
 
     if ! [[ "$_continue" =~ ^(Y|y|Yes|yes)$ ]];then
@@ -402,6 +437,7 @@ if [ "$1" = "install" ]; then
       # Rebuild external modules before make install so installkernel hooks
       # can include them in a generated initramfs or UKI.
       msg2 "Rebuild kernel modules with \"emerge @module-rebuild\" ?"
+      _flush_stdin
       read -p "[N]/y: " _continue
       if [[ "$_continue" =~ ^(Y|y|Yes|yes)$ ]];then
         if ! sudo emerge @module-rebuild --keep-going; then

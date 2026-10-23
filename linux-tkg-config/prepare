@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # List of kernels that are maintained upstream
-_current_kernels=("7.2" "7.1" "6.18" "6.12" "6.6" "6.1" "5.15" "5.10")
+_current_kernels=("7.3" "7.2" "6.18" "6.12" "6.6" "6.1" "5.15" "5.10")
 
 # List of kernels that are no longer maintained either upstream or locally
-_eol_kernels=("7.0" "6.19" "6.17" "6.16" "6.15" "6.14" "6.13" "6.11" "6.10" "6.9" "6.8" "6.7" "6.5" "6.4" "6.3" "6.2" "6.0" "5.19" "5.18" "5.17" "5.16" "5.14" "5.13" "5.12" "5.11" "5.9" "5.8" "5.7" "5.4")
+_eol_kernels=("7.1" "7.0" "6.19" "6.17" "6.16" "6.15" "6.14" "6.13" "6.11" "6.10" "6.9" "6.8" "6.7" "6.5" "6.4" "6.3" "6.2" "6.0" "5.19" "5.18" "5.17" "5.16" "5.14" "5.13" "5.12" "5.11" "5.9" "5.8" "5.7" "5.4")
 
 _deprecated_config_vars=(
   "_use_tmpfs"
@@ -283,7 +283,7 @@ _set_kver_internal_vars() {
     _sub="$SUBLEVEL"
   fi
 
-  msg2 "kernel version to build is $VERSION.$PATCHLEVEL.$_sub"
+  msg2 "kernel version to build is $VERSION.$PATCHLEVEL.$_sub" |& tee -a "$_where/logs/prepare.log.txt"
 
   # Append a zero to the minor if it has single digit
   [[ ${#PATCHLEVEL} == "1" ]] && PATCHLEVEL="0$PATCHLEVEL"
@@ -437,7 +437,7 @@ _set_cpu_scheduler() {
     _cpusched="${_selected_key}"
   fi
 
-  msg2 "Using $_cpusched CPU scheduler"
+  msg2 "Using $_cpusched CPU scheduler" |& tee -a "$_where/logs/prepare.log.txt"
 
   echo -e "_cpusched='$_cpusched'" >> "$_where"/BIG_UGLY_FROGMINER
 }
@@ -570,7 +570,7 @@ _setup_kernel_work_folder() {
   cd "$_where"
 
   if ! [ -d "$_kernel_source_folder_abs" ]; then
-    msg2 "First initialization of the linux source code git folder"  | tee -a "$_where/logs/git_work.log.txt"
+    msg2 "First initialization of the linux source code git folder" |& tee -a "$_where/logs/git_work.log.txt"
     mkdir -p "$_kernel_source_folder_abs"
     cd "$_kernel_source_folder_abs"
     git -c init.defaultBranch=master init --bare
@@ -579,19 +579,18 @@ _setup_kernel_work_folder() {
   cd "$_kernel_source_folder_abs"
 
   if [[ ! "$_offline" =~ ^(y|Y|yes|true|True)$ ]]; then
-    msg2 "Fetching tag: $_kernel_git_tag from remote $_git_mirror" | tee -a "$_where/logs/git_work.log.txt"
+    msg2 "Fetching tag: $_kernel_git_tag from remote $_git_mirror" |& tee -a "$_where/logs/git_work.log.txt"
     git fetch --depth 1 $_git_mirror tag "$_kernel_git_tag" &>> "$_where/logs/git_work.log.txt"
   fi
 
-  msg2 "Checking out tag: $_kernel_git_tag" | tee -a "$_where/logs/git_work.log.txt"
-  msg2 "   in the work folder: $_kernel_work_folder_abs" | tee -a "$_where/logs/git_work.log.txt"
+  msg2 "Checking out tag: $_kernel_git_tag in $_kernel_work_folder_abs" |& tee -a "$_where/logs/git_work.log.txt"
 
   # The space ' ' in grep -w "$_kernel_work_folder_abs " is important
   # to not match an existing folder with a longer name with the same prefix name
   if [ -d "$_kernel_work_folder_abs" ] && \
      ( git worktree list | grep -w "$_kernel_work_folder_abs " &> /dev/null ) && \
      ( cd "$_kernel_work_folder_abs" && git status &> /dev/null ); then
-    msg2 "Worktree folder $_kernel_work_folder_abs exists and is a valid worktree folder" | tee -a "$_where/logs/git_work.log.txt"
+    msg2 "Worktree folder $_kernel_work_folder_abs exists and is a valid worktree folder" |& tee -a "$_where/logs/git_work.log.txt"
     cd "$_kernel_work_folder_abs"
     git reset --hard &>> "$_where/logs/git_work.log.txt"
     git clean -ffdx &>> "$_where/logs/git_work.log.txt"
@@ -600,7 +599,7 @@ _setup_kernel_work_folder() {
     git checkout "$_kernel_git_tag" &>> "$_where/logs/git_work.log.txt"
   else
     # In all other cases, just force create the work tree
-    msg2 "Force creating fresh git worktree folder $_kernel_work_folder_abs" | tee -a "$_where/logs/git_work.log.txt"
+    msg2 "Force creating fresh git worktree folder $_kernel_work_folder_abs" |& tee -a "$_where/logs/git_work.log.txt"
     rm -rf "$_kernel_work_folder_abs" &>> "$_where/logs/git_work.log.txt"
     git worktree add -f "$_kernel_work_folder_abs" "$_kernel_git_tag" &>> "$_where/logs/git_work.log.txt"
   fi
@@ -748,15 +747,15 @@ _tkg_patcher() {
     return 0
   fi
   if [ -e "$tkgpatch" ] && [[ $(wc -l <"$tkgpatch") -ge 7 ]]; then
-    msg2 "$_msg"
-    echo -e "### Applying ${tkgpatch##*/}... ###" >> "$_where"/logs/prepare.log.txt
+    printf '\n### Applying %s... ###\n' "${tkgpatch##*/}" >> "$_where"/logs/prepare.log.txt
+    msg2 "$_msg" |& tee -a "$_where/logs/prepare.log.txt"
     if ! patch -Np1 -i "$tkgpatch" >> "$_where"/logs/prepare.log.txt; then
       error "Patch application failed. Debug logs in prepare.log.txt file."
       exit 1
     fi
-    echo -e "\n" >> "$_where"/logs/prepare.log.txt
+    printf '\n' >> "$_where"/logs/prepare.log.txt
   else
-    msg2 "Skipping patch ${tkgpatch##*/}...\n         (unavailable for this kernel version)"
+    msg2 "Skipping patch ${tkgpatch##*/}...\n         (unavailable for this kernel version)" |& tee -a "$_where/logs/prepare.log.txt"
   fi
 }
 
@@ -776,10 +775,10 @@ _tkg_srcprep() {
       local _tkg_watermark=""
       [[ "$_custom_pkgbase" != *tkg* ]] && _tkg_watermark="tkg-"
       echo "-${pkgrel}-${_tkg_watermark}${_vanilla_tag}${_custom_pkgbase}" > localversion.10-pkgrel
-      echo -e "Version tail set to \"-${pkgrel}${_localversion_tag}${_custom_pkgbase}\"\n" > "$_where"/logs/prepare.log.txt
+      echo -e "Version tail set to \"-${pkgrel}${_localversion_tag}${_custom_pkgbase}\"\n" >> "$_where"/logs/prepare.log.txt
     else
       echo "-$pkgrel-tkg-${_vanilla_tag}${_cpusched}${_compiler_name}" > localversion.10-pkgrel
-      echo -e "Version tail set to \"-$pkgrel-tkg-${_cpusched}${_compiler_name}\"\n" > "$_where"/logs/prepare.log.txt
+      echo -e "Version tail set to \"-$pkgrel-tkg-${_cpusched}${_compiler_name}\"\n" >> "$_where"/logs/prepare.log.txt
     fi
     echo "" > localversion.20-pkgname
   fi
@@ -967,24 +966,25 @@ _tkg_srcprep() {
 
   fi
 
+  printf '\n### Kernel configuration ###\n' >> "$_where"/logs/prepare.log.txt
   if [ -z "${_configfile}" ]; then
-    msg2 "Using archlinux's default config file for kernel ${_basekernel}"
+    msg2 "Using archlinux's default config file for kernel ${_basekernel}" |& tee -a "$_where/logs/prepare.log.txt"
     cat "${srcdir}"/config.x86_64 > ./.config
   elif [ "${_configfile}" = "config_hardened.x86_64" ]; then
-    msg2 "Using archlinux's hardened config file for kernel ${_basekernel}"
+    msg2 "Using archlinux's hardened config file for kernel ${_basekernel}" |& tee -a "$_where/logs/prepare.log.txt"
     cat "${srcdir}"/config_hardened.x86_64 > ./.config
   elif [ "${_configfile}" = "running-kernel" ]; then
     if [ -f /boot/config-`uname -r` ];then
-      msg2 "Using /boot/config-`uname -r` as config file"
+      msg2 "Using /boot/config-`uname -r` as config file" |& tee -a "$_where/logs/prepare.log.txt"
       cp /boot/config-`uname -r` .config
     elif [ -f /proc/config.gz ];then
-      msg2 "Using /proc/config.gz as config file"
+      msg2 "Using /proc/config.gz as config file" |& tee -a "$_where/logs/prepare.log.txt"
       zcat --verbose /proc/config.gz > .config
     else
       _die "Cannot get config file of running kernel"
     fi
   else
-    msg2 "Using user-provided config file in ${_where}/${_configfile}"
+    msg2 "Using user-provided config file in ${_where}/${_configfile}" |& tee -a "$_where/logs/prepare.log.txt"
     cat "${_where}/${_configfile}" > ./.config
   fi
 
@@ -1148,7 +1148,7 @@ _tkg_srcprep() {
         return 1
       fi
     fi
-    if which rustc &> /dev/null; then
+    if [ "$_rustdisable" != "true" ] && which rustc &> /dev/null; then
       if ! ( rustc --print target-cpus | grep "$1" &> /dev/null ) ; then
         return 1
       fi
@@ -1192,7 +1192,7 @@ _tkg_srcprep() {
     _processor_opt="${_selected_key}"
   fi
 
-  msg2 "Setting cpu micro architecture to $_processor_opt"
+  msg2 "Setting cpu micro architecture to $_processor_opt" |& tee -a "$_where/logs/prepare.log.txt"
 
   echo "_processor_opt='$_processor_opt'" >> "$_where"/BIG_UGLY_FROGMINER
 
@@ -1516,7 +1516,7 @@ _tkg_srcprep() {
   fi
   if [[ "$CONDITION3" =~ [yY] ]] || [ "$_numadisable" = "true" ]; then
     # disable NUMA since 99.9% of users do not have multiple CPUs but do have multiple cores in one CPU
-    _disable "NUMA" "AMD_NUMA" "ACPI_NUMA" "X86_64_ACPI_NUMA" "NODES_SPAN_OTHER_NODES" "NUMA_EMU" "NODES_SHIFT" "NEED_MULTIPLE_NODES" "USE_PERCPU_NUMA_NODE_ID"
+    _disable "NUMA" "AMD_NUMA" "ACPI_NUMA" "X86_64_ACPI_NUMA" "NODES_SPAN_OTHER_NODES" "NUMA_EMU" "NEED_MULTIPLE_NODES" "USE_PERCPU_NUMA_NODE_ID"
   fi
 
   # tickless
@@ -1852,19 +1852,27 @@ fi
   fi
 
   if [[ "$_modprobeddb" = "true" || "$_kernel_on_diet" == "true" ]]; then
-    msg2 "Using modprobed-db"
-    if [ -f "$_where"/"$_modprobeddb_db_path" ]; then
+    msg2 "Using modprobed-db" |& tee -a "$_where/logs/prepare.log.txt"
+    if [[ -n "$_modprobeddb_db_path" && -f "$_where/$_modprobeddb_db_path" ]]; then
       _modprobeddb_db_path="$_where"/"$_modprobeddb_db_path"
     fi
+    if [[ -z "$_modprobeddb_db_path" ]]; then
+      for _db_path in "${XDG_DATA_HOME:-$HOME/.local/share}/modprobed-db/modprobed.db" "${XDG_CONFIG_HOME:-$HOME/.config}/modprobed.db"; do
+        if [[ -f "$_db_path" ]]; then
+          _modprobeddb_db_path="$_db_path"
+          break
+        fi
+      done
+    fi
     if [ "$_kernel_on_diet" == "true" ]; then
-      msg2 "Using linux-tkg diet db"
+      msg2 "Using linux-tkg diet db" |& tee -a "$_where/logs/prepare.log.txt"
       _modprobeddb_db_path="$_where/minimal-modprobed.db"
     fi
-    if [ ! -f $_modprobeddb_db_path ]; then
+    if [[ ! -f "$_modprobeddb_db_path" ]]; then
       _die "modprobed-db database not found"
     fi
 
-    yes "" | make LSMOD=$_modprobeddb_db_path localmodconfig ${llvm_opt}
+    yes "" | make LSMOD="$_modprobeddb_db_path" localmodconfig ${llvm_opt}
   fi
 
   if [ true = "$_config_fragments" ]; then
@@ -1892,17 +1900,26 @@ fi
     fi
 
     if [ 0 -lt "${#fragments[@]}" ]; then
-      scripts/kconfig/merge_config.sh -m .config "${fragments[@]}"
+      ( set -o pipefail; scripts/kconfig/merge_config.sh -m .config "${fragments[@]}" |& tee -a "$_where/logs/prepare.log.txt" )
+    fi
+  fi
+
+  # Disable Rust support if requested
+  if [ "$_rustdisable" = "true" ]; then
+    msg2 "Disabling Rust support" |& tee -a "$_where/logs/prepare.log"
+    _disable "RUST"
+    if [[ $(scripts/config -s DRM_PANIC_SCREEN) = "qr_code" ]]; then
+      scripts/config --set-str "DRM_PANIC_SCREEN" "kmsg"
     fi
   fi
 
   # rewrite configuration
-  msg2 "Setting config"
-  make ${_config_updating} ${llvm_opt} |& tee -a "$_where"/logs/prepare.log.txt
+  msg2 "Setting config" |& tee -a "$_where/logs/prepare.log.txt"
+  ( set -o pipefail; make ${_config_updating} ${llvm_opt} |& tee -a "$_where"/logs/prepare.log.txt )
 
   # Modify the kernel config file to fit Fedora SELinux configuration
   if [ "$_distro" = "Fedora" ] ; then
-    msg2 "SELinux activation for Fedora"
+    msg2 "SELinux activation for Fedora" |& tee -a "$_where/logs/prepare.log.txt"
     _enable "AUDIT"
     _enable "SECURITY_SELINUX"
     _enable "DEFAULT_SECURITY_SELINUX"
@@ -1996,7 +2013,7 @@ fi
     [[ "$_nofallback" = "true" ]] && _die "Since _nofallback is enabled, exiting..."
   fi
 
-  if (( "$_kver" >= 601 )); then
+  if [ "$_rustdisable" != "true" ] && (( "$_kver" >= 601 )); then
     local rustflags_source_line_number=$(grep -E -n '^KBUILD_RUSTFLAGS[[:space:]]+\+=[[:space:]]+\$\(KRUSTFLAGS\)' Makefile 2> /dev/null | head -n1 | cut -d":" -f1)
     if [[ -n "$rustflags_source_line_number" ]]; then
       sed -i "${rustflags_source_line_number}i KBUILD_RUSTFLAGS += -Ztune-cpu=$_mtune" Makefile
@@ -2017,8 +2034,6 @@ exit_cleanup() {
   # Move eventual shell-output.log file to logs folder
   if [ -f "$_where/shell-output.log" ]; then
     mv -f "$_where"/shell-output.log "$_where"/logs/shell-output.log.txt
-    sed -i 's/\x1b\[[0-9;]*m//g' "$_where"/logs/shell-output.log.txt
-    sed -i 's/\x1b(B//g' "$_where"/logs/shell-output.log.txt
   fi
 
   # Remove temporarily copied files
@@ -2036,8 +2051,8 @@ exit_cleanup() {
     rm "$_where"/BIG_UGLY_FROGMINER
   fi
 
-  # Remove ntsync rules file
-  rm -f "$_where"/ntsync.rules
+  # Remove ntsync files
+  rm -f "$_where"/ntsync.rules "$_where"/ntsync.conf
 
   # Community patches removal in case of failure
   for _p in ${_community_patches[@]}; do
@@ -2053,21 +2068,30 @@ exit_cleanup() {
   fi
 
   msg2 'exit cleanup done\n'
-  if [ -n "$_runtime" ]; then
-    msg2 "compilation time : \n$_runtime"
-  fi
 
   [[ -f "$_where"/git_work.log.txt ]] && \
     mv -f "$_where"/git_work.log.txt "$_where"/logs/git_work.log.txt
 
   # Create logs/system-info.txt
-  cat /etc/os-release > "$_where"/logs/system-info.txt
+  head -n1 /etc/os-release > "$_where"/logs/system-info.txt
   if command -v clang &> /dev/null; then
     echo "#################" >> "$_where"/logs/system-info.txt
     clang --version 2>&1 | head -n1 >> "$_where"/logs/system-info.txt
   fi
   echo "#################" >> "$_where"/logs/system-info.txt
   gcc --version 2>&1 | head -n1 >> "$_where"/logs/system-info.txt
+  if command -v rustc &> /dev/null; then
+    echo "#################" >> "$_where"/logs/system-info.txt
+    rustc --version >> "$_where"/logs/system-info.txt
+  fi
+
+  # Strip ANSI color codes from all saved logs
+  local _log
+  for _log in "$_where"/logs/*.txt; do
+    [[ -f "$_log" ]] || continue
+    sed -i -e 's/\x1b\[[0-9;]*m//g' \
+           -e 's/\x1b(B//g' "$_log"
+  done
 }
 
 trap exit_cleanup EXIT
