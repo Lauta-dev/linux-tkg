@@ -19,7 +19,8 @@ on:
 
 
 env:
-  _processor_opt: "x86-64"
+  _processor_opt: "silvermont"
+  _version: "6.18-latest"
   _git_mirror: "gregkh"
   PKGDEST: "/tmp/linux-tkg"
   _debugdisable: "true"
@@ -30,6 +31,11 @@ env:
   _kernel_source_folder: "/tmp"
   _modprobeddb_db_path: ${{ github.workspace }}/modprobed.db
   _nofallback: "true"
+  _timer_freq: "300"
+  _acs_override: "false"
+  _numadisable: "true"
+  _rustdisable: "true"
+  _NR_CPUS_value: "2"
 
 
 

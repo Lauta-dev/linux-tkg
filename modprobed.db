@@ -2,6 +2,7 @@
 842_decompress
 acpi_thermal_rel
 at24
+atkbd
 bluetooth
 btbcm
 btcoexist
@@ -21,6 +22,7 @@ drm_buddy
 drm_display_helper
 dvb_core
 efivarfs
+exfat
 ext4
 f2fs
 fat
@@ -31,6 +33,7 @@ i2c_algo_bit
 i2c_i801
 i2c_mux
 i2c_smbus
+i8042
 i915
 int3400_thermal
 int3401_thermal
@@ -51,6 +54,7 @@ kvm
 kvm_intel
 libarc4
 libphy
+libps2
 lpc_ich
 lz4_compress
 lz4hc_compress
@@ -90,6 +94,7 @@ rtlwifi
 rtsx_usb
 rtsx_usb_ms
 rtsx_usb_sdmmc
+serio
 serio_raw
 smsdvb
 smsmdtv
@@ -140,8 +145,3 @@ wmi
 wmi_bmof
 xfs
 zram
-i8042
-serio
-atkbd
-libps2
-psmouse

@@ -19,6 +19,7 @@ src/*
 pkg/*
 */linux-5*/
 *.myfrag
+!docker.myfrag
 logs/*
 kernel_updates
 kernelconfig.new
